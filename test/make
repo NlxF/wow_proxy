@@ -1,0 +1,3 @@
+#!/bin/bash
+
+gcc main.c ../common/crc8.c -o crc8c
