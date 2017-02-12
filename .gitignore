@@ -23,11 +23,11 @@ nbproject/*
 *.c~
 obj/
 *.pyc
-lserver/.idea/
-lserver/threadpool/threadpool
-lserver/lserver
-lserver/ss
+proxy_server/.idea/
+proxy_server/threadpool/threadpool
 test/crc8c
 test/client/test22
 test/ss2/a
 test/ss2/ss
+DerivedData/
+*.xcodeproj

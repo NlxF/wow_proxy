@@ -35,7 +35,7 @@
                                   pTM->tm_year+1900, pTM->tm_mon+1, pTM->tm_mday, pTM->tm_hour+8, pTM->tm_min, pTM->tm_sec, \
                                   ##__VA_ARGS__ ) ; \
 }
-#define dbgprint(format, ...)  PRINT_0("[%s]"format, IMAGENAME, ##__VA_ARGS__)
+#define dbgprint(format, ...)  PRINT_0(format, ##__VA_ARGS__)
 
 /**
 说明：将当前进程转化为守护进程
