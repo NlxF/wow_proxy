@@ -13,7 +13,7 @@ int create_daemon(int nochdir, int noclose)
     if(pid>0)
         exit(0);
     if(setsid() == -1){
-        printf("setsid() Failed with error msg:%s\n", strerror(errno));
+        dbgprint("setsid() Failed with error msg:%s\n", strerror(errno));
         return(-2);
     }
     if(nochdir == 0)
@@ -49,7 +49,7 @@ int get_absolute_path(char *current_absolute_path)
             break;
         }
     }
-    //printf("current absolute path:%s\n", current_absolute_path);
+    //dbgprint("current absolute path:%s\n", current_absolute_path);
     return 0;
 }
 
@@ -62,7 +62,7 @@ int get_home_Path(char szPath[512], int nbyte)
 	mkdir(szPath, 0777);
 	if(errno != 0 || errno != 17)
 	{
-		printf("%s\n", strerror(errno));
+		dbgprint("%s\n", strerror(errno));
 		return -1;
 	}
 	return 0;
