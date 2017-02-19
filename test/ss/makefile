@@ -1,3 +1,3 @@
 #!/bin/bash
 
-gcc main.c -o ../../lserver/ss -lreadline
+gcc main.c -o wowserver -lreadline

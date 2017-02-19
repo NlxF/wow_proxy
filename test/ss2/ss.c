@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-///redirection to pipe add by LuxF
+///redirection to pipe
 #define LSERVER2WSERVER "/.lserver2wserver"
 #define WSERVER2LSERVER "/.wserver2lserver"
 #define MAX_SIZE 1024
@@ -33,7 +33,7 @@ void RedirectToPip(int *in_fd, int *out_fd)
 	//printf("It will redirect to pip for automation");
 	char szpath[512];
 	if(getPipPath(szpath, sizeof(szpath)) != 0)
-		return;
+		return -1;
 	
 	char l2w[MAX_SIZE] ={0};
 	char w2l[MAX_SIZE] = {0};
@@ -43,7 +43,7 @@ void RedirectToPip(int *in_fd, int *out_fd)
     if((mkfifo(l2w, 0666)==-1&&errno!=EEXIST)||(mkfifo(w2l,0666)==-1&&errno!=EEXIST))
 	{
         printf("1 %s:%d:%s\n", __FILE__, __LINE__,strerror(errno));
-		return;
+		return -2;
 	}
 
 	int write_fd = open(w2l, O_RDWR);
@@ -51,7 +51,7 @@ void RedirectToPip(int *in_fd, int *out_fd)
     if(write_fd==-1||read_fd==-1)
 	{
         printf("%s:%d:%s\n",__FILE__, __LINE__, "open pipe error!");
-		return ;
+		return -3;
 	}
 
 	dup2(write_fd, STDOUT_FILENO);
@@ -91,6 +91,7 @@ int main()
 	//FILE *fin;
 	int in_fd, out_fd;
 	RedirectToPip(&in_fd, &out_fd);
+    
 	while(1)
 	{
 		char *command_str;

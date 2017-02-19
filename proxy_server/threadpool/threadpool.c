@@ -1,6 +1,7 @@
-#include "config.h"
+#include "config_.h"
 #include "global.h"
 #include "threadpool.h"
+#include "../../common/config_.h"
 
 
 static int threadpool_keepalive = 1;

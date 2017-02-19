@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 #include "../../common/crc8.h"
-#include "../../common/config.h"
+#include "../../common/config_.h"
 #include "../../common/utility.h"
 #include "../../common/cJSON.h"
 

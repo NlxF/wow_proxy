@@ -9,7 +9,7 @@ import multiprocessing
 import random
 from contextlib import closing
 
-HOST = '127.0.0.1'
+HOST = '172.16.5.226'
 PORT = 8083
 MESSAGE = "Hello world!"
 
@@ -23,7 +23,7 @@ def test_performance(msg):
 	news_str = news.SerializeToString()'''
 
 	#use json
-	dic = {"needResponse":True, "message": msg, "len": len(msg)}
+	dic = {"needResponse":False, "message": msg, "len": len(msg)}
 	news_str = json.dumps(dic)	
 	
 	c=crc8.crc8()

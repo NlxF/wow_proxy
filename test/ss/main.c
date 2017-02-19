@@ -10,92 +10,81 @@
 
 #define LSERVER2WSERVER "/.lserver2wserver"
 #define WSERVER2LSERVER "/.wserver2lserver"
-
 #define MAX_SIZE 1024
 
-typedef struct 
+int getPipPath(char szPath[512], int nbyte)
 {
-	int  len;
-	char msg[1024];
-}SOCKDATA, *PSOCKDATA;
-
-int get_absolute_path(char *current_absolute_path)
-{
-    int cnt = readlink("/proc/self/exe", current_absolute_path, MAX_SIZE);
-    if (cnt < 0 || cnt >= MAX_SIZE)
-        return -1;
-    //获取当前目录绝对路径，即去掉程序名
-    int i;
-    for (i = cnt; i >=0; --i)
+    bzero(szPath, nbyte);
+    
+    char *home_path = getenv("HOME");
+    sprintf(szPath, "%s/%s", home_path, ".wowserver");
+    mkdir(szPath, 0777);
+    if(errno != 0 && errno != 17)
     {
-        if (current_absolute_path[i] == '/')
-        {
-            current_absolute_path[i] = '\0';
-            break;
-        }
+        printf("error:%d = %s\n", errno, strerror(errno));
+        return -1;
     }
     return 0;
 }
 
-void do_work(PSOCKDATA p)
+int RedirectToPip()
 {
-	time_t t;
-
-	time(&t);
-	char *pdate = asctime(gmtime(&t));
-	sleep(1);
-	snprintf(p->msg, 1024, "handle all data at %s\n", pdate);
-	p->len = strlen(p->msg);
-	
+    //printf("It will redirect to pip for automation");
+    char szpath[512];
+    if(getPipPath(szpath, sizeof(szpath)) != 0)
+        return -1;
+    
+    char l2w[MAX_SIZE] ={0};
+    char w2l[MAX_SIZE] = {0};
+    
+    snprintf(l2w, MAX_SIZE, "%s/%s", szpath, LSERVER2WSERVER);
+    snprintf(w2l, MAX_SIZE, "%s/%s", szpath, WSERVER2LSERVER);
+    if((mkfifo(l2w, 0666)==-1&&errno!=EEXIST)||(mkfifo(w2l,0666)==-1&&errno!=EEXIST))
+    {
+        printf("%s:%d:%s\n", __FILE__, __LINE__,strerror(errno));
+        unlink(l2w);
+        unlink(w2l);
+        return -2;
+    }
+    
+//    int write_fd = open(w2l, O_RDWR);
+    int read_fd = open(l2w, O_RDWR);
+    if(/*write_fd==-1||*/read_fd==-1)
+    {
+        printf("%s:%d:%s\n",__FILE__, __LINE__, "open pipe error!");
+        return -3;
+    }
+    
+//    dup2(write_fd, STDOUT_FILENO);
+    dup2(read_fd, STDIN_FILENO);
+    
+    return 1;
 }
 
 int main()
 {
 	//redirection to pipe
-	char current_abs_path[MAX_SIZE] ={0};     
-	char l2w[MAX_SIZE] ={0};
-	char w2l[MAX_SIZE] = {0};
-
-	get_absolute_path(current_abs_path);
-	snprintf(l2w, MAX_SIZE, "%s/%s", current_abs_path,LSERVER2WSERVER);
-	snprintf(w2l, MAX_SIZE, "%s/%s", current_abs_path,WSERVER2LSERVER);
-    if((mkfifo(l2w, 0666)==-1&&errno!=EEXIST)||(mkfifo(w2l,0666)==-1&&errno!=EEXIST))
-	{
-        printf("%s:%d:%s\n", __FILE__, __LINE__,strerror(errno));
-		return -1;
-	}
-	
-	freopen(l2w, "w+", stdin);
-	freopen(w2l, "w+", stdout);
-    /*int write_fd = open(w2l, O_RDWR);
-    int read_fd = open(l2w, O_RDWR);
-    if(write_fd==-1||read_fd==-1)
-	{
-        printf("%s:%d:%s\n",__FILE__, __LINE__, "open pipe error!");
-		return -1;
-	}*/
-
-	//dup2(write_fd, STDOUT_FILENO);
-	//dup2(read_fd, STDIN_FILENO);
-
-	//printf("starting reading/writing\n");
-	SOCKDATA data;
-	bzero(&data, sizeof(data));
+    if(RedirectToPip()<0)
+    {
+        printf("redirect to pip failed\n");
+        return;
+    }
+    printf("redirect to pip...\n");
+    
 	while(1)
 	{
 		time_t t;
+        
 		//int nbytes = read(read_fd, data.msg, 1024);
+        printf("read fron stdin...\n");
 		char *command_str = readline(NULL);
-		data.len = strlen(command_str);
-		//data.msg[nbytes] = '\0';
+		
 		time(&t);
-		//printf("\n-----------------\n");
-		//printf("%sRecv: %s\n", asctime(gmtime(&t)), data.msg);
-
-		do_work(&data);
+		printf("\n-----------------\n");
+		printf("%sRecv: %s\n", asctime(gmtime(&t)), command_str);
 
 		//printf(data.msg);
 		//printf("\n-----------------\n");		
 	}
-	//printf("end read/write\n");
+	printf("end read/write\n");
 }

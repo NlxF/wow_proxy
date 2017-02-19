@@ -46,19 +46,21 @@ int main()
     if((mkfifo(l2w, 0666)==-1&&errno!=EEXIST)||(mkfifo(w2l,0666)==-1&&errno!=EEXIST))
 	{
         printf("%s:%d:%s\n", __FILE__, __LINE__,strerror(errno));
+        unlink(l2w);
+        unlink(w2l);
 		return;
 	}
 
-	//int read_fd = open(w2l, O_RDWR);
+	int read_fd = open(w2l, O_RDWR);
     //int write_fd = open(l2w, O_RDWR);
-    //if(write_fd==-1/*||read_fd==-1*/)
+    if(/*write_fd==-1||*/read_fd==-1)
 	{
-       // printf("%s:%d:%s\n",__FILE__, __LINE__, "open pipe error!");
-	//	return ;
+        printf("%s:%d:%s\n",__FILE__, __LINE__, "open pipe error!");
+		return ;
 	}
 
 	//dup2(write_fd, STDOUT_FILENO);
-	//dup2(read_fd, STDIN_FILENO);
+	dup2(read_fd, STDIN_FILENO);
 
 	int out_fd = open(l2w, O_RDWR);
 	if(out_fd < 0)
