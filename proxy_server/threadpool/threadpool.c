@@ -107,7 +107,7 @@ threadpool *threadpool_init(int thread_num)
 	pthpool = (threadpool*)malloc(sizeof(threadpool));
 	if(pthpool==NULL)
 	{
-		dbgprint("malloc threadpool struct error\n");
+		dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "malloc threadpool struct error");
 		return NULL;
 	}
 
@@ -115,7 +115,7 @@ threadpool *threadpool_init(int thread_num)
 	pthpool->pthreads = (pthread_t*)malloc(thread_num*sizeof(pthread_t));
 	if(pthpool->pthreads == NULL)
 	{
-		dbgprint("malloc threadpool->pthreads error\n");
+		dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "malloc threadpool->pthreads error");
 		return NULL;
 	}
 
@@ -126,7 +126,7 @@ threadpool *threadpool_init(int thread_num)
 	pthpool->job_queue->queue_sem = (sem_t*)malloc(sizeof(sem_t));
 	if(sem_init(pthpool->job_queue->queue_sem, 0, 0)==-1)   //when init threadpool block all theads;
 	{
-	    dbgprint("sem_init() failed\n");
+	    dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "sem_init() failed");
 	    return NULL;
 	}
 	int t;

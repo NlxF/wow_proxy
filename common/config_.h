@@ -19,12 +19,10 @@
 #define LSERVER2WSERVER ".lserver2wserver"
 #define WSERVER2LSERVER ".wserver2lserver"
 
-
 #define MAX_SIZE 1024
 
 #define psyslog(level, format, ...) \
 syslog(level, format, ##__VA_ARGS__)
-
 
 #define PRINT_BASE(format, ...)    ;printf(format, ##__VA_ARGS__)
 #define PRINT_0( format, ... ) \
@@ -38,27 +36,27 @@ pTM->tm_year+1900, pTM->tm_mon+1, pTM->tm_mday, pTM->tm_hour+8, pTM->tm_min, pTM
 
 #define dbgprint(format, ...)  PRINT_0(format, ##__VA_ARGS__)
 
+typedef  int (*VerifyCallback)(int, X509_STORE_CTX *);
 
 typedef struct
 {
-#ifdef SOCKSSL
-	SSL *ssl;
-#endif
     int ep_fd;
     int events;
-	int client_fd;
-    bool tcpConnected;
-    
+	int sock_fd;
+#ifdef SOCKSSL
+    SSL *ssl;
+    bool sslConnected;
+#endif
 }SOCKCONN;
 
 typedef struct
 {
-    int  sock_fd;      //sock fd
-    int  read_fd;      //read fd
-    int  write_fd;     //write fd
+    int  read_fd;             //pipe read fd
+    int  write_fd;            //pipe write fd
+    SOCKCONN*  sockConn;      //connect info
     
-    int  size;         //message len
-    char *msg;         //send message
+    int  size;                //message len
+    char *msg;                //send message
 }SOCKDATA;
 
 /** JSON消息结构

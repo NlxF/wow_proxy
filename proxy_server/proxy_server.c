@@ -9,37 +9,12 @@
 const char IMAGENAME[] = {"lserver:"};
 threadpool *pthpool;                                 //thrad pool
 SSL_CTX* g_sslCtx;
+BIO* errBio;
+bool  g_stop;
 
-bool redirect_namedpip(int *write_fd, int *read_fd){
+int  jobs = 0;          //For debug
+int  loop = 0;          //For debug
 
-    char l2w[MAX_SIZE] ={0};
-    char w2l[MAX_SIZE] = {0};
-    char current_abs_path[MAX_SIZE] ={0};
-    
-    //get_absolute_path(current_abs_path);
-    get_home_Path(current_abs_path, sizeof(current_abs_path));
-    snprintf(l2w, MAX_SIZE, "%s/%s", current_abs_path,LSERVER2WSERVER);
-    snprintf(w2l, MAX_SIZE, "%s/%s", current_abs_path,WSERVER2LSERVER);
-    if((mkfifo(l2w, 0666)==-1&&errno!=EEXIST)||(mkfifo(w2l,0666)==-1&&errno!=EEXIST))
-    {
-        dbgprint("%s:%d:%s\n", __FILE__, __LINE__,strerror(errno));
-        return false;
-    }
-    *write_fd = open(l2w, O_RDWR);
-    *read_fd = open(w2l, O_RDWR);
-    if(*write_fd==-1 || *read_fd==-1)
-    {
-        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "open pipe error!");
-        return false;
-    }
-    
-    dbgprint("open pipe....\n");
-    
-    //set process max fd, 0 for RLIM_INFINITY,
-    set_process_max_fd(0);
-    
-    return true;
-}
 
 int verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 {
@@ -68,81 +43,6 @@ int verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
     return preverify_ok;
 }
 
-typedef  int (*VerifyCallback)(int, X509_STORE_CTX *);
-SSL_CTX *start_ssl(VerifyCallback erify_callback)
-{
-    //ssl variable
-    SSL_CTX *ctx = NULL;
-    
-    ctx = init_server_ctx();                 /* initialize SSL */
-    if (ctx == NULL)
-    {
-        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "init ssl error");
-        return NULL;
-    }
-    /* 载入用户的数字证书，此证书用来发送给客户端。证书里包含有公钥 */
-    char szPath[MAX_SIZE] = {0};
-    char CA_file[MAX_SIZE] = {0};
-    char server_crt[MAX_SIZE] = {0};
-    char server_key[MAX_SIZE] = {0};
-    getcwd(szPath, sizeof(szPath));
-    snprintf(CA_file,    sizeof(CA_file),    "%s/%s", szPath, "cert/cacert.pem");
-    snprintf(server_crt, sizeof(server_crt), "%s/%s", szPath, "cert/server_crt.pem");
-    snprintf(server_key, sizeof(server_key), "%s/%s", szPath, "cert/server_key.pem");
-    if(!load_certificates(ctx, CA_file, server_crt, server_key))
-    {
-        return NULL;
-    }
-    
-    //request client certificate
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verify_callback);
-    
-    dbgprint("init ssl...\n");
-    
-    g_sslCtx = ctx;
-    return ctx;
-}
-
-
-int start_socket(int port)
-{
-
-    if(port <= 0) return -1;
-    
-    int  listen_fd;
-    
-    //create listening socket
-    if((listen_fd=create_listen_sock(port)) < 0)
-        return -1;
-    dbgprint("create listen sock...\n");
-    
-    //begin listening
-    if(listen(listen_fd, LISTEN_MAX) == -1)
-    {
-        dbgprint("%s:%d:listen sock error:%s\n",__FILE__, __LINE__, strerror(errno));
-        return -2;
-    }
-    
-    return listen_fd;
-    
-}
-
-int  loop = 0;
-
-void add_epoll_fd(SOCKCONN *sockConn)
-{
-    if(sockConn==NULL)  return;
-    
-    struct epoll_event event;
-    
-//    event.data.fd = sockConn.client_fd;
-    event.data.ptr = sockConn
-    event.events = EPOLLIN | EPOLLET;
-    epoll_ctl(sockConn.ep_fd, EPOLL_CTL_ADD, sockConn.client_fd, &event);      //add new event
-    
-    dbgprint("%d accept client :%d\n", ++loop, client_fd);
-}
-
 void handle_accept(int ep_fd, int listen_fd)
 {
     int  client_fd;    //client fd
@@ -167,10 +67,8 @@ void handle_accept(int ep_fd, int listen_fd)
             }
         }
         
-        SOCKCONN *sockConn = (SOCKCONN*)malloc(sizeof(SOCKCONN));
-        memset(sockConn, 0, sizeof(SOCKCONN));
-        sockConn.ep_fd = ep_fd;
-        sockConn.client_fd = client_fd;
+        SOCKCONN *sockConn = malloc_sockconn(ep_fd, client_fd, EPOLLIN|EPOLLET); //interest event
+        
 #ifdef SOCKSSL
         SSL *ssl = SSL_new(g_sslCtx);         					/* get new SSL state with context */
         if (ssl==NULL)
@@ -180,7 +78,7 @@ void handle_accept(int ep_fd, int listen_fd)
             dbgprint("%s:%d:SSL_new failed%s\n",__FILE__, __LINE__, szMsg);
             break;
         }
-        sockConn.ssl = ssl;
+        sockConn->ssl = ssl;
         SSL_set_fd(ssl, client_fd);
         SSL_set_accept_state(ssl);
 #endif
@@ -192,125 +90,125 @@ void handle_accept(int ep_fd, int listen_fd)
     }
 }
 
-void handle_read(int sock_fd, int read_fd, int write_fd)
+void handle_read(SOCKCONN *sockConn, int read_fd, int write_fd)
 {
-    if (sock_fd<=0||read_fd<=0||write_fd<=0) return;
+    if (sockConn==NULL||read_fd<=0||write_fd<=0) return;
     
-    SOCKDATA *pdata = (SOCKDATA*)malloc(sizeof(SOCKDATA));
-    bzero(pdata, sizeof(SOCKDATA));
-    pdata->sock_fd = sock_fd;
-    pdata->write_fd = write_fd;
-    pdata->read_fd = read_fd;
-    threadpool_add_work(pthpool, (void*)read_sock, (void*)pdata);
+    SOCKDATA *sockData = malloc_sockData(sockConn, read_fd, write_fd);
+    if(sockData != NULL)
+    {
+        threadpool_add_work(pthpool, (void*)read_sock, (void*)sockData);
+    }
 }
 
-void handle_write(int sock_fd)
+void handle_write(SOCKCONN *sockConn)
 {
-    if (sock_fd<=0) return;
+    if (sockConn==NULL) return;
     
-    SOCKDATA *pdata = (SOCKDATA*)malloc(sizeof(SOCKDATA));
-    bzero(pdata, sizeof(SOCKDATA));
-    pdata->sock_fd = sock_fd;
-    threadpool_add_work(pthpool, (void*)write_sock, (void*)pdata);
+    SOCKDATA *sockData = malloc_sockData(sockConn, 0, 0);
+    if(sockData != NULL)
+    {
+        threadpool_add_work(pthpool, (void*)write_sock, (void*)sockData);
+    }
 }
 
-void handle_handshake(Channel* ch) {
-    if (!ch->tcpConnected_) {
-        struct pollfd pfd;
-        pfd.fd = ch->fd_;
-        pfd.events = POLLOUT | POLLERR;
-        int r = poll(&pfd, 1, 0);
-        if (r == 1 && pfd.revents == POLLOUT) {
-            log("tcp connected fd %d\n", ch->fd_);
-            ch->tcpConnected_ = true;
-            ch->events_ = EPOLLIN | EPOLLOUT | EPOLLERR;
-            ch->update();
-        } else {
-            log("poll fd %d return %d revents %d\n", ch->fd_, r, pfd.revents);
-            delete ch;
-            return;
-        }
-    }
-    if (ch->ssl_ == NULL) {
-        ch->ssl_ = SSL_new (g_sslCtx);
-        check0(ch->ssl_ == NULL, "SSL_new failed");
-        int r = SSL_set_fd(ch->ssl_, ch->fd_);
-        check0(!r, "SSL_set_fd failed");
-        log("SSL_set_accept_state for fd %d\n", ch->fd_);
-        SSL_set_accept_state(ch->ssl_);
-    }
-    int r = SSL_do_handshake(ch->ssl_);
-    if (r == 1) {
-        ch->sslConnected_ = true;
-        log("ssl connected fd %d\n", ch->fd_);
+void handle_handshake(SOCKCONN *sockConn) {
+    
+    int rtn = SSL_do_handshake(sockConn->ssl);
+    if (rtn == 1)
+    {
+        sockConn->sslConnected = true;
+        dbgprint("ssl connected fd %d\n", sockConn->sock_fd);
         return;
     }
-    int err = SSL_get_error(ch->ssl_, r);
-    int oldev = ch->events_;
-    if (err == SSL_ERROR_WANT_WRITE) {
-        ch->events_ |= EPOLLOUT;
-        ch->events_ &= ~EPOLLIN;
-        log("return want write set events %d\n", ch->events_);
-        if (oldev == ch->events_) return;
-        ch->update();
-    } else if (err == SSL_ERROR_WANT_READ) {
-        ch->events_ |= EPOLLIN;
-        ch->events_ &= ~EPOLLOUT;
-        log("return want read set events %d\n", ch->events_);
-        if (oldev == ch->events_) return;
-        ch->update();
-    } else {
-        log("SSL_do_handshake return %d error %d errno %d msg %s\n", r, err, errno, strerror(errno));
+    
+    int err = SSL_get_error(sockConn->ssl, rtn);
+    int old_evs = sockConn->events;
+    if (err == SSL_ERROR_WANT_WRITE)                  //SSL需要在非阻塞socket可写时写入数据
+    {
+        sockConn->events |= EPOLLOUT;
+        sockConn->events &= ~EPOLLIN;
+        dbgprint("return want write set events %d\n", sockConn->events);
+    }
+    else if (err == SSL_ERROR_WANT_READ)              //SSL需要在非阻塞socket可读时读入数据
+    {
+        sockConn->events |= EPOLLIN;
+        sockConn->events &= ~EPOLLOUT;                //暂时不关注socket可写状态
+        dbgprint("return want read set events %d\n", sockConn->events);
+    }
+    else
+    {
+        dbgprint("SSL_do_handshake return %d error %d errno %d msg %s\n", rtn, err, errno, strerror(errno));
         ERR_print_errors(errBio);
-        delete ch;
+        free_sockconn(sockConn);                      //关闭sock后，会自动从epoll轮询中移除
+    }
+    
+    if (old_evs != sockConn->events)                  //更新关注事件
+    {
+        dbgprint("update events from: %d to: %d\n", old_evs, sockConn->events);
+        modify_epoll_fd(sockConn);
     }
 }
 
-bool    g_stop = false;
-int     jobs = 0;
 
 void loop_once(int ep_fd, int listen_fd, int read_fd, int write_fd)
 {
-    int    nfds;         //ready I/O fd
-    int    client_num;
+    int    nfds;                             //ready I/O fd
     struct epoll_event event;
     struct epoll_event events[LISTEN_MAX];   //all events
     
     nfds = epoll_wait(ep_fd, events, LISTEN_MAX, -1);
     
     //handle all events
-    for(client_num=0; client_num<nfds; ++client_num)
+    int sock_num;
+    for(sock_num=0; sock_num<nfds; ++sock_num)
     {
-        CSOCKCONN *sockConn = (CSOCKCONN*)events[i].data.ptr;
+        SOCKCONN *sockConn = (SOCKCONN*)events[sock_num].data.ptr;
+        int _event = events[sock_num].events;
         
-        if((events[client_num].events & EPOLLERR) ||
-           (events[client_num].events & EPOLLHUP) /*||
-           (!(events[client_num].events & EPOLLIN))*/)
+        if((_event & EPOLLERR) || (_event & EPOLLHUP) /*||(!(eevents & EPOLLIN))*/)
         {
             //an error has occured on this fd
-            dbgprint("%s:%d:An error:%d(%s) has occured on this fd:%d, or the socket is not ready for reading%s\n",__FILE__, __LINE__, errno, strerror(errno), events[client_num].data.fd);
+            dbgprint("%s:%d:An error:%d(%s) has occured on this fd:%d, or the socket is not ready for reading%s\n",__FILE__, __LINE__, errno, strerror(errno), sockConn->sock_fd);
             
-            close(events[client_num].data.fd);
+            close(sockConn->sock_fd);
             continue;
         }
-        else if(events[client_num].data.fd == listen_fd)
+        else if(_event & EPOLLIN)                 //data in include
         {
-            // We have a notification on the listening socket, which means one or more incoming connections.
-            handle_accept(ep_fd, listen_fd);
-            continue;
+            if(sockConn->sock_fd == listen_fd)
+            {
+                // We have a notification on the listening socket, which means one or more incoming connections.
+                handle_accept(ep_fd, listen_fd);
+                continue;
+            }
+#ifdef SOCKSSL
+            if (sockConn->sslConnected)
+            {
+#endif
+                handle_read(sockConn, read_fd, write_fd);
+                dbgprint("job number :%d, with client: %d\n", ++jobs, sockConn->sock_fd);
+                continue;
+#ifdef SOCKSSL
+            }
+            handle_handshake(sockConn);
+#endif
         }
-        else if(events[client_num].events & EPOLLIN)              //data in
+        else if(_event & EPOLLOUT)             //data out
         {
-            handle_read(events[client_num].data.fd, read_fd, write_fd);
-            dbgprint("job number :%d, with client: %d\n", ++jobs, events[client_num].data.fd);
+#ifdef SOCKSSL
+            if(!sockConn->sslConnected)
+            {
+                handle_handshake(sockConn);
+                continue;
+            }
+#endif
+            handle_write(sockConn);
+            dbgprint("client: %d send data out", sockConn->sock_fd);
         }
-        else if(events[client_num].events & EPOLLOUT)             //data out
+        else
         {
-            handle_write(events[client_num].data.fd)
-            dbgprint("client: %d send data out", events[client_num].data.fd);
-        }else
-        {
-            
+            dbgprint("client: %d occur a unknown event", sockConn->sock_fd);
         }
     }
 }
@@ -326,6 +224,7 @@ int main(int argc, char*argv[])
     int  read_fd;      //read fd
     int  write_fd;     //write fd
     
+    g_stop = false;
     signal(SIGINT, handleInterrupt);
     
     //open syslog
@@ -341,35 +240,47 @@ int main(int argc, char*argv[])
     pthpool = threadpool_init(get_cpu_num());
     if(pthpool == NULL)
     {
-        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "create threadpool error");
         return -1;
     }
 	dbgprint("create threadpool...\n");
 
 #ifdef SOCKSSL
-    //start ssl
-    if (start_ssl() == NULL)
+    char ca_file[MAX_SIZE]    = {0};
+    char path_buf[MAX_SIZE]   = {0};
+    char server_crt[MAX_SIZE] = {0};
+    char server_key[MAX_SIZE] = {0};
+    getcwd(path_buf,     sizeof(path_buf));
+    snprintf(ca_file,    sizeof(ca_file),    "%s/%s", path_buf, "cert/cacert.pem");
+    snprintf(server_crt, sizeof(server_crt), "%s/%s", path_buf, "cert/server_crt.pem");
+    snprintf(server_key, sizeof(server_key), "%s/%s", path_buf, "cert/server_key.pem");
+    
+    g_sslCtx = start_ssl(ca_file, server_crt, server_key, verify_callback);
+    if (g_sslCtx == NULL)
     {
-        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "init ssl error");
         return -1;
     }
+    errBio = BIO_new_fd(2, BIO_NOCLOSE);
 #endif
     
     //start socket
-    int listen_fd = start_socket(8083);
+    int listen_fd = create_server(8083);
     if (listen_fd <= 0)
     {
         return -1;
     }
+    
 	dbgprint("start listening...\n");
 
     //create epoll fd
     int ep_fd = create_epoll(listen_fd);
     if(ep_fd < 0)
     {
-        dbgprint("%s:%d:create epoll error:%s\n",__FILE__, __LINE__, strerror(errno));
         return -3;
     }
+    
+    SOCKCONN *sockConn = malloc_sockconn(ep_fd, listen_fd, EPOLLIN|EPOLLET);  //interest event
+    
+    add_epoll_fd(sockConn);
     
     //start loop
 	dbgprint("start loop...\n");
@@ -378,11 +289,11 @@ int main(int argc, char*argv[])
         loop_once(ep_fd, listen_fd, read_fd, write_fd);
     }
     
-
     close(listen_fd);
     
 #ifdef SOCKSSL
-    SSL_CTX_free(ctx);
+    SSL_CTX_free(g_sslCtx);
+    BIO_free(errBio);
 #endif
     
     closelog();

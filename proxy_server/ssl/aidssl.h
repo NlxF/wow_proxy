@@ -11,14 +11,10 @@
 
 void error_ssl(char *msg, int size);
 
-SSL_CTX* init_server_ctx(void);
-
-bool load_certificates(SSL_CTX* ctx, char *Cafile, char* CertFile, char* KeyFile);
+SSL_CTX *start_ssl(char *ca_file, char* cert_file, char* key_file, VerifyCallback erify_callback);
 
 void ShowCerts(SSL* ssl);
 
 void shutdown_ssl(SSL *ssl);
 
 void destroy_ssl(SSL_CTX *ctx);
-
-

@@ -41,7 +41,6 @@ void inline init_child_image(char* servername);
 **/
 int get_absolute_path(char *current_absolute_path);
 
-
 /**
 说明：设置进程的最大fd
 参数：如果为0 则为RLIM_INFINITY
@@ -49,11 +48,19 @@ int get_absolute_path(char *current_absolute_path);
 void set_process_max_fd(int max);
 
 /**
-说明：默认在端口8083
+ 创建两条命名管道
+ @param write_fd 返回写管道
+ @param read_fd  返回读管道
+ @return 是否创建成功
+ */
+bool redirect_namedpip(int *write_fd, int *read_fd);
+
+/**
+说明：默认在端口8083,开启监听服务
 参数：端口号
 返回值：成功返回监听套接字，失败返回<0
 **/
-int create_listen_sock(int port);
+int create_server(int port);
 
 /**
 说明：设置fd为非阻塞模式
@@ -63,12 +70,52 @@ int create_listen_sock(int port);
 int set_non_blocking(int fd);
 
 /**
-说明：创建epoll,并将监听sock添加到epoll集合
+说明：创建epoll
 参数：文件描述符
 返回值：成功返回epoll文件描述符，失败返回值<0
 **/
 int create_epoll(int sock_fd);
 
+/**
+ 添加监听sock添加到epoll集合
+ @param sockConn SOCKCONN指针
+ */
+void add_epoll_fd(SOCKCONN *sockConn);
 
+/**
+ 更新已添加到epoll轮询中的sock的关注事件
+ @param sockConn SOCKCONN指针
+ */
+void modify_epoll_fd(SOCKCONN *sockConn);
+
+/**
+ 创建SOCKDATA
+ @param sock_fd  client socket
+ @param read_fd  读管道fd
+ @param write_fd 写管道fd
+ @return SOCKDATA指针
+ */
+SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int read_fd, int write_fd);
+
+/**
+ 释放创建的SOCKDATA
+ @param SOCKDATA SOCKDATA指针
+ */
+void free_sockData(SOCKDATA *);
+
+/**
+ 创建SOCKCONN
+ @param ep_fd  epoll句柄
+ @param sock_fd sock句柄
+ @param events 关注的事件
+ @return SOCKCONN指针
+ */
+SOCKCONN *malloc_sockconn(int ep_fd, int sock_fd, int events);
+
+/**
+ 释放创建的SOCKCONN
+ @param SOCKCONN SOCKCONN指针
+ */
+void free_sockconn(SOCKCONN *);
 
 #endif // UTILITY_H_INCLUDED

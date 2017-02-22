@@ -43,6 +43,10 @@ SSL_CTX* init_server_ctx(void)
     method = SSLv23_server_method();
     
     ctx = SSL_CTX_new(method);			/* create new context from method */
+    if (ctx == NULL)
+    {
+        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "init ssl error");
+    }
     
     return ctx;
 }
@@ -54,13 +58,22 @@ SSL_CTX* init_server_ctx(void)
 bool load_certificates(SSL_CTX* ctx, char *Cafile, char* CertFile, char* KeyFile)
 {
     /* load the CA certificate from Cafile */
-    if ( SSL_CTX_load_varify_location(ctx, Cafile, NULL) )
+    if ( SSL_CTX_load_verify_locations(ctx, Cafile, NULL) <= 0)
     {
-        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "varify the CA failed\n");
+        dbgprint("%s:%d:%s:%s:%d\n",__FILE__, __LINE__, "varify the CA failed\n", Cafile, ERR_get_error());
         return false;
     }
+    // allow this CA to be sent to the client during handshake
+    STACK_OF(X509_NAME) * list = SSL_load_client_CA_file(Cafile);
+    if (NULL == list)
+    {
+        dbgprint("Failed to load SSL client CA file.");
+        return false;
+    }
+    SSL_CTX_set_client_CA_list(ctx, list);
+    SSL_CTX_set_verify_depth(ctx, 1);
     /* 设置证书密码 */
-//    SSL_CTX_set_default_passwd_cb_userdata(ctx, "1234");
+    //SSL_CTX_set_default_passwd_cb_userdata(ctx, "1234");
     
     /* set the local certificate from CertFile */
     if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
@@ -84,6 +97,25 @@ bool load_certificates(SSL_CTX* ctx, char *Cafile, char* CertFile, char* KeyFile
     return true;
 }
 
+
+SSL_CTX *start_ssl(char *ca_file, char* cert_file, char* key_file, VerifyCallback verify_callback)
+{
+    //ssl variable
+    SSL_CTX *ctx = NULL;
+    
+    ctx = init_server_ctx();                 /* initialize SSL */
+    if (ctx == NULL)  return NULL;
+    
+    /* 载入用户的数字证书，此证书用来发送给客户端。证书里包含有公钥 */
+    if(!load_certificates(ctx, ca_file, cert_file, key_file))   return NULL;
+    
+    //request client certificate
+//    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verify_callback);
+    
+    dbgprint("init ssl...\n");
+    
+    return ctx;
+}
 
 /*---------------------------------------------------------------------*/
 /*--- ShowCerts - print out certificates.                           ---*/

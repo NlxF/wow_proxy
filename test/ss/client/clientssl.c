@@ -33,6 +33,7 @@
 #include <openssl/err.h>
 
 #define FAIL    -1
+#define MAX_VERIFY_DEPTH 1
 
 /*---------------------------------------------------------------------*/
 /*--- OpenConnection - create socket and connect to server.         ---*/
@@ -94,7 +95,8 @@ int verifyCallback(int preverify_ok, X509_STORE_CTX *ctx)
 /*--- InitCTX - initialize the SSL engine.                          ---*/
 /*---------------------------------------------------------------------*/
 SSL_CTX* InitCTX(void)
-{   SSL_METHOD *method;
+{
+    SSL_METHOD *method;
     SSL_CTX *ctx;
     
     SSL_library_init();
@@ -114,12 +116,12 @@ SSL_CTX* InitCTX(void)
 /*---------------------------------------------------------------------*/
 /*--- Added the LoadCertificates how in the server-side makes.      ---*/
 /*---------------------------------------------------------------------*/
-void LoadCertificates(SSL_CTX* ctx, char& Cafile, char* CertFile, char* KeyFile)
+void LoadCertificates(SSL_CTX* ctx, char* Cafile, char* CertFile, char* KeyFile)
 {
     /* load the CA certificate from Cafile */
-    if ( SSL_CTX_load_varify_location(ctx, Cafile, NULL) )
+    if ( SSL_CTX_load_verify_locations(ctx, Cafile, NULL) <= 0)
     {
-        printf("varify the CA failed\n");
+        printf("varify the CA:%s failed\n", Cafile);
         abort();
     }
     /* set the local certificate from CertFile */
@@ -180,40 +182,51 @@ int main(int count, char *strings[])
     char KeyFile[1024];
     char caFile[1024];
     
-    hostname = "192.168.0.102";
+    hostname = "127.0.0.1";
     portnum = "8083";
     
     getcwd(buf, sizeof(buf));
     snprintf(CertFile, sizeof(CertFile), "%s/%s", buf, "cert/client_crt.pem");
     snprintf(KeyFile,  sizeof(KeyFile),  "%s/%s", buf, "cert/client_key.pem");
-    snprintf(caFile,   sizeof(caFile) ,  "%s/s%", buf, "cert/cacert.pem");
+    snprintf(caFile,   sizeof(caFile) ,  "%s/%s", buf, "cert/cacert.pem");
     
     ctx = InitCTX();
     LoadCertificates(ctx, caFile, CertFile, KeyFile);
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verifyCallback);
-    SSL_CTX_set_verify_depth(ctx, MAX_VERIFY_DEPTH + 1);
+//    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verifyCallback);
+//    SSL_CTX_set_verify_depth(ctx, MAX_VERIFY_DEPTH);
     server = OpenConnection(hostname, atoi(portnum));
     ssl = SSL_new(ctx);						/* create new SSL connection state */
     SSL_set_fd(ssl, server);				/* attach the socket descriptor */
     if ( SSL_connect(ssl) == FAIL )			/* perform the connection */
-        ERR_print_errors_fp(stderr);
+    {
+//        ERR_print_errors_fp(stderr);
+        printf("connect failed\n");
+    }
     else
-    {   char *msg = "Hello???";
+    {   char *msg = "Hello world";
         
-        if(SSL_get_verify_result(ssl)!=X509_V_OK)
-        {
-            printf("SSL verify failed: ");
-            ERR_print_errors_fp(stderr);
-            abort();
-        }
-        printf("SSL handshake/verify successful\n");
+//        if(SSL_get_verify_result(ssl)!=X509_V_OK)
+//        {
+//            printf("SSL verify failed: ");
+//            ERR_print_errors_fp(stderr);
+//            abort();
+//        }
+//        printf("SSL handshake/verify successful\n");
         
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
+        
         ShowCerts(ssl);								/* get any certs */
+        
         SSL_write(ssl, msg, strlen(msg));			/* encrypt & send message */
-        bytes = SSL_read(ssl, buf, sizeof(buf));	/* get reply & decrypt */
-        buf[bytes] = 0;
-        printf("Received: \"%s\"\n", buf);
+        printf("Send: %s\n", msg);
+        bytes = 1;
+        while(bytes)
+        {
+            bytes = SSL_read(ssl, buf, sizeof(buf));	/* get reply & decrypt */
+            buf[bytes] = '\0';
+            printf("Received: \"%s\"\n", buf);
+        }
+        SSL_shutdown(ssl);
         SSL_free(ssl);								/* release connection state */
     }
     close(server);									/* close socket */
