@@ -60,37 +60,43 @@ bool load_certificates(SSL_CTX* ctx, char *Cafile, char* CertFile, char* KeyFile
     /* load the CA certificate from Cafile */
     if ( SSL_CTX_load_verify_locations(ctx, Cafile, NULL) <= 0)
     {
-        dbgprint("%s:%d:%s:%s:%d\n",__FILE__, __LINE__, "varify the CA failed\n", Cafile, ERR_get_error());
+        dbgprint("%s:%d:%s:%s:%d\n", __FILE__, __LINE__, "varify the CA failed", Cafile, ERR_get_error());
         return false;
     }
     // allow this CA to be sent to the client during handshake
+    if (SSL_CTX_use_certificate_chain_file(ctx, Cafile) <= 0)
+    {
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "Failed to add CA file into use certificate chain.");
+        return false;
+    }
     STACK_OF(X509_NAME) * list = SSL_load_client_CA_file(Cafile);
     if (NULL == list)
     {
-        dbgprint("Failed to load SSL client CA file.");
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "Failed to load SSL client CA file.");
         return false;
     }
-    SSL_CTX_set_client_CA_list(ctx, list);
-    SSL_CTX_set_verify_depth(ctx, 1);
+    
+//    SSL_CTX_set_client_CA_list(ctx, list);
+    dbgprint("%s:%s\n", "client CA list", list);
     /* 设置证书密码 */
     //SSL_CTX_set_default_passwd_cb_userdata(ctx, "1234");
     
     /* set the local certificate from CertFile */
     if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
     {
-        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "set the local certificate failed\n");
+        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "set the local certificate failed");
         return false;
     }
     /* set the private key from KeyFile */
     if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
     {
-        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "set the private key failed\n");
+        dbgprint("%s:%d:%s\n",__FILE__, __LINE__, "set the private key failed");
         return false;
     }
     /* verify private key */
     if ( !SSL_CTX_check_private_key(ctx) )
     {
-        dbgprint("Private key does not match the public certificate\n");
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "Private key does not match the public certificate");
         return false;
     }
     
@@ -111,6 +117,7 @@ SSL_CTX *start_ssl(char *ca_file, char* cert_file, char* key_file, VerifyCallbac
     
     //request client certificate
 //    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verify_callback);
+//    SSL_CTX_set_verify_depth(ctx, 1);
     
     dbgprint("init ssl...\n");
     
@@ -128,17 +135,17 @@ void ShowCerts(SSL* ssl)
     cert = SSL_get_peer_certificate(ssl);	/* Get certificates (if available) */
     if ( cert != NULL )
     {
-        printf("Server certificates:\n");
+        dbgprint("Server certificates:\n");
         line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
-        printf("Subject: %s\n", line);
+        dbgprint("Subject: %s\n", line);
         free(line);
         line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
-        printf("Issuer: %s\n", line);
+        dbgprint("Issuer: %s\n", line);
         free(line);
         X509_free(cert);
     }
     else
-        printf("No certificates.\n");
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "No certificates");
 }
 
 /*---------------------------------------------------------------------*/

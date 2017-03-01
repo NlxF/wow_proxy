@@ -1,20 +1,20 @@
 #include "utility.h"
 
 
-extern int loop;
-
 //-----------------------------------------------DAEMON-------------------------------------------//
 int create_daemon(int nochdir, int noclose)
 {
     pid_t pid;
     pid = fork();
-    if(pid == -1){
+    if(pid == -1)
+    {
         psyslog(LOG_ERR, strerror(errno), __FILE__, __FUNCTION__, __LINE__);
         return(-1);
     }
     if(pid>0)
         exit(0);
-    if(setsid() == -1){
+    if(setsid() == -1)
+    {
         dbgprint("setsid() Failed with error msg:%s\n", strerror(errno));
         return(-2);
     }
@@ -73,9 +73,9 @@ int get_home_Path(char szPath[512], int nbyte)
 void init_child_image(char* servername)
 {
     int     log_fd;
-    char  *const pargv[2]                                       = {NULL};
-    char  argv[2][MAX_SIZE]                              = {0} ;
-    char  file_path[MAX_SIZE]                           = {0};
+    char  *const pargv[2]                     = {NULL};
+    char  argv[2][MAX_SIZE]                   = {0} ;
+    char  file_path[MAX_SIZE]                 = {0};
     char  current_absolute_path[MAX_SIZE]     = {0};
     //获取当前目录绝对路径
     if (get_absolute_path(current_absolute_path)!=0)   //if(getcwd(current_absolute_path, MAX_SIZE)==NULL)
@@ -231,10 +231,9 @@ void add_epoll_fd(SOCKCONN *sockConn)
     int rtn = epoll_ctl(sockConn->ep_fd, EPOLL_CTL_ADD, sockConn->sock_fd, &event);   //add event
     if (rtn != 0)
     {
-        dbgprint("epoll_ctl add failed %d %s\n", errno, strerror(errno));
+        dbgprint("%s:%d:epoll_ctl add failed %d %s\n", __FILE__, __LINE__, errno, strerror(errno));
         return;
     }
-    dbgprint("%d accept client :%d\n", ++loop, sockConn->sock_fd);
 }
 
 void modify_epoll_fd(SOCKCONN *sockConn)
@@ -251,7 +250,7 @@ void modify_epoll_fd(SOCKCONN *sockConn)
     int rtn = epoll_ctl(sockConn->ep_fd, EPOLL_CTL_MOD, sockConn->sock_fd, &event);   //modify event
     if (rtn != 0)
     {
-        dbgprint("epoll_ctl mod failed %d %s\n", errno, strerror(errno));
+        dbgprint("%s:%d:epoll_ctl mod failed %d %s\n", __FILE__, __LINE__, errno, strerror(errno));
         return;
     }
 }
@@ -268,7 +267,7 @@ bool redirect_namedpip(int *write_fd, int *read_fd)
     snprintf(w2l, MAX_SIZE, "%s/%s", current_abs_path,WSERVER2LSERVER);
     if((mkfifo(l2w, 0666)==-1&&errno!=EEXIST)||(mkfifo(w2l,0666)==-1&&errno!=EEXIST))
     {
-        dbgprint("%s:%d:%s\n", __FILE__, __LINE__,strerror(errno));
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, strerror(errno));
         return false;
     }
     *write_fd = open(l2w, O_RDWR);

@@ -1,3 +1,6 @@
+#ifndef _AIDSSL_H_
+#define _AIDSSL_H_
+
 //
 //  aidssl.h
 //  wow_proxy
@@ -18,3 +21,6 @@ void ShowCerts(SSL* ssl);
 void shutdown_ssl(SSL *ssl);
 
 void destroy_ssl(SSL_CTX *ctx);
+
+
+#endif

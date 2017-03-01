@@ -186,7 +186,7 @@ int main(int count, char *strings[])
     portnum = "8083";
     
     getcwd(buf, sizeof(buf));
-    snprintf(CertFile, sizeof(CertFile), "%s/%s", buf, "cert/client_crt.pem");
+    snprintf(CertFile, sizeof(CertFile), "%s/%s", buf, "cert/client_cert.pem");
     snprintf(KeyFile,  sizeof(KeyFile),  "%s/%s", buf, "cert/client_key.pem");
     snprintf(caFile,   sizeof(caFile) ,  "%s/%s", buf, "cert/cacert.pem");
     

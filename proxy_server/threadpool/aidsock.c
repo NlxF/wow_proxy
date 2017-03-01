@@ -105,7 +105,6 @@ void *read_sock(void *p)
 
     char szBuf[MAX_SIZE*4] = {0};
     SOCKDATA *sockData = (SOCKDATA*)p;
-    int idx = 0;
     
     while(1)
     {
@@ -115,7 +114,7 @@ void *read_sock(void *p)
         nbytes = read(client_fd, szBuf, sizeof(szBuf));
         if(nbytes == -1)
         {
-            dbgprint("index:%d, client: %d, read -1 and the errno is %d\n", idx++, client_fd, errno);
+            dbgprint("%s:%d:client fd=%d, read -1 and the errno is %d\n", __FILE__, __LINE__, client_fd, errno);
             if (errno != EAGAIN)
             {
                 //If errno == EAGAIN, that means we have read all data. So go back to the main loop
@@ -126,18 +125,31 @@ void *read_sock(void *p)
         else if (nbytes == 0)
         {
             //End of file. The remote has closed the connection.
-            dbgprint("index: %d, End of socket:%d. The remote has closed the connection.\n", idx++, client_fd);
+            dbgprint("%s:%d:End of socket fd=%d. The remote has closed the connection.\n", __FILE__, __LINE__, client_fd);
             close (client_fd);
             break;
         }
-        dbgprint("index:%d, client: %d\n", idx++, client_fd);
+        dbgprint("read from client fd=%d\n", client_fd);
 #else
         SSL *_ssl = sockData->sockConn->ssl;
         nbytes = SSL_read(_ssl, szBuf, sizeof(szBuf));
-    
+        int err = SSL_get_error(_ssl, nbytes);
+        
+        if (nbytes == 0)
+        {
+            if (err == SSL_ERROR_ZERO_RETURN)
+            {
+                dbgprint("SSL has been shutdown\n");
+            }
+            else
+            {
+                dbgprint("Connection has been aborted.\n");
+            }
+            free_sockconn(sockData->sockConn);
+            break;
+        }
         if (nbytes < 0)
         {
-            int err = SSL_get_error(_ssl, nbytes);
             fd_set fds;
             struct timeval timeout;
             switch (err)
@@ -145,20 +157,20 @@ void *read_sock(void *p)
                 case SSL_ERROR_NONE:
                 {
                     // no real error, just try again...
-                    dbgprint("Error: SSL_ERROR_NONE \n");
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_NONE \n");
                     continue;
                 }
                 case SSL_ERROR_ZERO_RETURN:
                 {
                     // peer disconnected...
-                    dbgprint("Error: SSL_ERROR_ZERO_RETURN. SSL has been shutdown \n");
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_ZERO_RETURN, SSL has been shutdown \n");
                     free_sockconn(sockData->sockConn);
                     break;
                 }
                 case SSL_ERROR_WANT_READ:
                 {
                     // no data available right now, wait a few seconds in case new data arrives...
-                    dbgprint("Error: SSL_ERROR_WANT_READ \n");
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_WANT_READ \n");
                     int sock = SSL_get_rfd(_ssl);
                     FD_ZERO(&fds);
                     FD_SET(sock, &fds);
@@ -173,17 +185,17 @@ void *read_sock(void *p)
                     }
                     if (err == 0)
                     {
-                        // timeout...
+                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait for data coming timeout\n");
                     }
                     else {
-                        // error...
+                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait for data coming occure a error\n");
                     }
                     break;
                 }
                 case SSL_ERROR_WANT_WRITE:
                 {
                     // socket not writable right now, wait a few seconds and try again...
-                    dbgprint("Error: SSL_ERROR_WANT_WRITE \n");
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_WANT_WRITE \n");
                     int sock = SSL_get_wfd(_ssl);
                     FD_ZERO(&fds);
                     FD_SET(sock, &fds);
@@ -198,43 +210,24 @@ void *read_sock(void *p)
                     }
                     if (err == 0)
                     {
-                        // timeout...
+                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait to write data timeout\n");
                     }
                     else
                     {
-                        // error...
+                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait to write data occure a error\n");
                     }
                     break;
                 }
                 default:
                 {
-                    dbgprint("Error: error %i:%i\n", nbytes, err);
+                    dbgprint("%s:%d:SSL_read byte=%d, error=%d\n", __FILE__, __LINE__, nbytes, err);
                     break;
                 }
             }
             break;
         }
         
-//        int sslerr = SSL_get_error(_ssl, nbytes);
-//        if (nbytes < 0 && sslerr != SSL_ERROR_WANT_READ)
-//        {
-//            dbgprint("SSL_read return %d error %d errno %d msg %s", nbytes, sslerr, errno, strerror(errno));
-//            free_sockconn(sockData->sockConn);
-//            break;
-//        }
-//        else if (nbytes == 0)
-//        {
-//            if (sslerr == SSL_ERROR_ZERO_RETURN)
-//            {
-//                dbgprint("SSL has been shutdown.\n");
-//            }
-//            else
-//            {
-//                dbgprint("Connection has been aborted.\n");
-//            }
-//            free_sockconn(sockData->sockConn);
-//        }
-        dbgprint("index:%d, read client SSL: %d, data: %s\n", idx++, _ssl, szBuf);
+        dbgprint("read from SSL client fd=%d ssl=%d, data=%s\n", sockData->sockConn->sock_fd, _ssl, szBuf);
 #endif
         int resp = 0;
 //        char *format_message = analysis_message(szBuf, nbytes, &resp);
@@ -264,9 +257,10 @@ void *read_sock(void *p)
         }
         pthread_rwlock_unlock(&rwlock);
     }
-
+    
     free_sockData(sockData);
-
+    dbgprint("Read job Finish\n");
+    
 	return NULL;
 }
 
