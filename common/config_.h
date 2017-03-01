@@ -59,6 +59,15 @@ typedef struct
     char *msg;                //send message
 }SOCKDATA;
 
+
+typedef struct
+{
+    char value[256];
+    bool needRsp;
+    bool deprecated;
+} Command;
+
+
 /** JSON消息结构
 client ------------------------>web server----------------------------------->wow server
                 {                                {

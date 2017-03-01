@@ -2,6 +2,7 @@
 #include "../common/utility.h"
 #include "threadpool/threadpool.h"
 #include "threadpool/aidsock.h"
+#include "sqlite/aidsql.h"
 #ifdef SOCKSSL
 #include "ssl/aidssl.h"
 #endif
@@ -235,7 +236,14 @@ int main(int argc, char*argv[])
         return -1;
     }
 
-    //create threadpool
+    /* init command table */
+    if( init_commands_table() !=0 )
+    {
+        return -1;
+    }
+    dbgprint("init commands table...\n");
+    
+    /* create threadpool */
     pthpool = threadpool_init(get_cpu_num());
     if(pthpool == NULL)
     {

@@ -31,3 +31,7 @@ test/ss2/a
 test/ss2/ss
 DerivedData/*
 *.xcodeproj
+proxy_server/cert
+proxy_server/proxy_server
+proxy_server/obj/
+*.pem
