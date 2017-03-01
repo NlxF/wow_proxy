@@ -35,3 +35,6 @@ proxy_server/cert
 proxy_server/proxy_server
 proxy_server/obj/
 *.pem
+common/hashtable/hashtable-test
+https.cer
+test/ss/wowserver
