@@ -1,8 +1,6 @@
 #include <assert.h>
 #include "sqlite3.h"
-#include "config_.h"
-#include "hashtable/hashtable.h"
-#include "aidsql.h"
+#include "aid_sql.h"
 
 
 table command_table;    //hash table
@@ -18,8 +16,11 @@ static int callback_record(void *data, int argc, char **argv, char **azColName)
     Command *cmd = malloc(sizeof(Command));
     
     int i;
+    dbgprint("Parse one row:\n");
     for(i=0; i<argc; i++)
     {
+        dbgprint("  %7s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+        
         if (strncmp(azColName[i], "key", 3)==0)
         {
             e->word = make_key(atoi(argv[i]));
@@ -58,13 +59,13 @@ int init_commands_table()
     
     /* db */
     getcwd(buf, sizeof(buf));
-    snprintf(db_path, "%s/%s", buf, "commands.db");
+    snprintf(db_path, sizeof(db_path), "%s/%s", buf, "commands.db");
     
     sqlite3 *db;
     int rc = sqlite3_open(db_path, &db);
     if( rc )
     {
-        dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(db));
+        dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(db), db_path);
         return -1;
     }
     dbgprint("Opened database successfully\n");

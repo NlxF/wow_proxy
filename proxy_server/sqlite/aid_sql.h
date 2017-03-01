@@ -1,7 +1,9 @@
-#ifndef _AIDSQL_H_
-#define _AIDSQL_H_
+#ifndef _AID_SQL_H_
+#define _AID_SQL_H_
 
 
+#include "config_.h"
+#include "hashtable/hashtable.h"
 
 /**
  获取命令表

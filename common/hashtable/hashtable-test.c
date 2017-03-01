@@ -10,13 +10,12 @@
 #include "hashtable.h"
 #include "contracts.h"
 
-
-int main ()
+void test()
 {
     int n = (1<<10)+1; // start with 1<<10 for timing; 1<<9 for -d
     int num_tests = 1000; // start with 1000 for timing; 10 for -d
     int i; int j;
-
+    
     /* different from C0! */
     printf("Testing array of size %d with %d values, %d times\n", n/5, n, num_tests);
     for (j = 0; j < num_tests; j++)
@@ -44,5 +43,12 @@ int main ()
         table_free(H);
     }
     printf("All tests passed!\n");
+}
+
+
+int main ()
+{
+    test();
+    
     return 0;
 }

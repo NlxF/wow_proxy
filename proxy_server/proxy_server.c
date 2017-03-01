@@ -2,7 +2,7 @@
 #include "../common/utility.h"
 #include "threadpool/threadpool.h"
 #include "threadpool/aidsock.h"
-#include "sqlite/aidsql.h"
+#include "sqlite/aid_sql.h"
 #ifdef SOCKSSL
 #include "ssl/aidssl.h"
 #endif
