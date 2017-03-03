@@ -4,24 +4,24 @@ void test()
 {
     if( init_commands_table() !=0 )
     {
-        return -1;
+        return;
     }
     dbgprint("init commands table successfully...\n");
     
     int i;
     for (i=0; i<15; i++)
     {
+        printf("\n");
         dbgprint("search value for key: %d\n", i);
         
-        elem em = value_for_key(i);
+        Command* cmd = value_for_key(i);
         
-        if (em == NULL)
+        if (cmd == NULL)
         {
             dbgprint("value for key %d not found...\n", i);
         }
         else
         {
-            Command *cmd = em->info;
             dbgprint("value for key %d:\n", i);
             dbgprint("    command:%s\n", cmd->value);
             dbgprint("    needRsp:%s\n", cmd->needRsp?"True":"False");

@@ -4,13 +4,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <openssl/bio.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
 
 #ifndef SOCKSSL
 #define SOCKSSL
 #endif
+#ifdef SOCKSSL
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#endif
+
 
 #define THREEAD_MAX 4096
 #define LISTEN_MAX 500

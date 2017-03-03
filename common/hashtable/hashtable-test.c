@@ -13,7 +13,7 @@
 void test()
 {
     int n = (1<<10)+1; // start with 1<<10 for timing; 1<<9 for -d
-    int num_tests = 1000; // start with 1000 for timing; 10 for -d
+    int num_tests = 1; // start with 1000 for timing; 10 for -d
     int i; int j;
     
     /* different from C0! */
@@ -25,6 +25,7 @@ void test()
         {
             elem e = malloc(sizeof(struct elem));
             e->word = make_key(j*n+i);	/* diff from C0 */
+            printf("%s%s%s%d\n", "make key:", e->word," for value:", j*n+i);
             e->info = j*n+i;
             table_insert(H, e);
         }

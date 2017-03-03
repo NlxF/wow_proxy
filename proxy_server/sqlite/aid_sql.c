@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <unistd.h>
 #include "sqlite3.h"
 #include "aid_sql.h"
 
@@ -16,6 +17,7 @@ static int callback_record(void *data, int argc, char **argv, char **azColName)
     Command *cmd = malloc(sizeof(Command));
     
     int i;
+    dbgprint("\n");
     dbgprint("Parse one row:\n");
     for(i=0; i<argc; i++)
     {
@@ -31,11 +33,11 @@ static int callback_record(void *data, int argc, char **argv, char **azColName)
         }
         else if (strncmp(azColName[i], "needRsp", 7)==0)
         {
-            cmd->needRsp = (bool)argv[i];
+            cmd->needRsp = atoi(argv[i]);
         }
         else if (strncmp(azColName[i], "deprecated", 10)==0)
         {
-            cmd->deprecated = (bool)argv[i];
+            cmd->deprecated = atoi(argv[i]);
         }
     }
     e->info = (void*)cmd;
@@ -82,7 +84,7 @@ int init_commands_table()
         return -1;
     }
     
-    command_table = table_new(count);
+    command_table = table_new( count/3 );   //fix size
     if(!command_table)
     {
         dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create hash table failed\n");
@@ -110,13 +112,16 @@ int init_commands_table()
 
 
 
-void *value_for_key(int key)
+Command *value_for_key(int key)
 {
     if(command_table)
     {
         char* s = make_key(key);
-        
-        return ((elem)table_search(command_table, s))->info;
+        elem em = (elem)table_search(command_table, s);
+        if (em)
+        {
+            return (Command*)em->info;
+        }
     }
     return NULL;
 }

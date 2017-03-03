@@ -3,7 +3,7 @@
 
 
 #include "config_.h"
-#include "hashtable/hashtable.h"
+#include "hashtable.h"
 
 /**
  获取命令表
@@ -24,7 +24,7 @@ int init_commands_table();
  @param key 所求value的keu
  @return value值
  */
-void *value_for_key(int key);
+Command *value_for_key(int key);
 
 
 #endif

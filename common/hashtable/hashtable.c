@@ -132,6 +132,8 @@ int hash(ht_key s, int m)
     int hx = (int)h;
     if (hx < 0) h += m;	/* make positive, if necessary */
     ENSURES(0 <= hx && hx < m);
+    
+//    printf("key=%2s hash value=%d, index=%d with chain size=%d\n", s, hx, hx, m);
     return hx;
 }
 
