@@ -38,8 +38,8 @@ int create_daemon(int nochdir, int noclose)
 
 int get_absolute_path(char *current_absolute_path)
 {
-    int cnt = readlink("/proc/self/exe", current_absolute_path, MAX_SIZE);
-    if (cnt < 0 || cnt >= MAX_SIZE)
+    int cnt = readlink("/proc/self/exe", current_absolute_path, MAX_BUF_SIZE);
+    if (cnt < 0 || cnt >= MAX_BUF_SIZE)
         return -1;
     //获取当前目录绝对路径，即去掉程序名
     int i;
@@ -73,23 +73,23 @@ int get_home_Path(char szPath[512], int nbyte)
 void init_child_image(char* servername)
 {
     int     log_fd;
-    char  *const pargv[2]                     = {NULL};
-    char  argv[2][MAX_SIZE]                   = {0} ;
-    char  file_path[MAX_SIZE]                 = {0};
-    char  current_absolute_path[MAX_SIZE]     = {0};
+    char  *const pargv[2]                         = {NULL};
+    char  argv[2][MAX_BUF_SIZE]                   = {0} ;
+    char  file_path[MAX_BUF_SIZE]                 = {0};
+    char  current_absolute_path[MAX_BUF_SIZE]     = {0};
     //获取当前目录绝对路径
-    if (get_absolute_path(current_absolute_path)!=0)   //if(getcwd(current_absolute_path, MAX_SIZE)==NULL)
+    if (get_absolute_path(current_absolute_path)!=0)   //if(getcwd(current_absolute_path, MAX_BUF_SIZE)==NULL)
     {
         psyslog(LOG_ERR, strerror(errno), __FILE__, __FUNCTION__, __LINE__);
         exit(-1);
     }
     //stdout重定向到./wserver.log
-    snprintf(file_path, MAX_SIZE, "%s/%s", current_absolute_path, "wserver.log");
+    snprintf(file_path, MAX_BUF_SIZE, "%s/%s", current_absolute_path, "wserver.log");
     log_fd = open(file_path, O_CREAT|O_RDWR|O_APPEND, 0666);
     dup2(log_fd, STDOUT_FILENO);
 
-    snprintf(file_path, MAX_SIZE, "%s/%s", current_absolute_path, servername);
-    strncpy(argv[0], servername, MAX_SIZE);
+    snprintf(file_path, MAX_BUF_SIZE, "%s/%s", current_absolute_path, servername);
+    strncpy(argv[0], servername, MAX_BUF_SIZE);
     //pargv[0] = argv;
     char *const argv2[] = {servername, NULL};
     execvp(file_path,  argv2);
@@ -257,14 +257,14 @@ void modify_epoll_fd(SOCKCONN *sockConn)
 
 bool redirect_namedpip(int *write_fd, int *read_fd)
 {
-    char l2w[MAX_SIZE] ={0};
-    char w2l[MAX_SIZE] = {0};
-    char current_abs_path[MAX_SIZE] ={0};
+    char l2w[MAX_BUF_SIZE]              = {0};
+    char w2l[MAX_BUF_SIZE]              = {0};
+    char current_abs_path[MAX_BUF_SIZE] = {0};
     
     //get_absolute_path(current_abs_path);
     get_home_Path(current_abs_path, sizeof(current_abs_path));
-    snprintf(l2w, MAX_SIZE, "%s/%s", current_abs_path,LSERVER2WSERVER);
-    snprintf(w2l, MAX_SIZE, "%s/%s", current_abs_path,WSERVER2LSERVER);
+    snprintf(l2w, MAX_BUF_SIZE, "%s/%s", current_abs_path,LSERVER2WSERVER);
+    snprintf(w2l, MAX_BUF_SIZE, "%s/%s", current_abs_path,WSERVER2LSERVER);
     if((mkfifo(l2w, 0666)==-1&&errno!=EEXIST)||(mkfifo(w2l,0666)==-1&&errno!=EEXIST))
     {
         dbgprint("%s:%d:%s\n", __FILE__, __LINE__, strerror(errno));

@@ -2,8 +2,8 @@
 #define _AID_SQL_H_
 
 
-#include "config_.h"
-#include "hashtable.h"
+#include "../../common/config_.h"
+#include "../../common/hashtable/hashtable.h"
 
 /**
  获取命令表

@@ -6,9 +6,10 @@
 //  Copyright © 2017年 luxiaofei. All rights reserved.
 //
 
+#ifdef SOCKSSL
+
 #include "../../common/utility.h"
 #include "aidssl.h"
-
 
 
 /*---------------------------------------------------------------------*/
@@ -172,4 +173,4 @@ void destroy_ssl(SSL_CTX *ctx)
     ERR_free_strings();
 }
 
-
+#endif

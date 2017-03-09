@@ -21,6 +21,7 @@ void* xmalloc(size_t size)
         printf("allocation failed\n");
         abort();
     }
+    memset(p, 0, size);
     return p;
 }
 

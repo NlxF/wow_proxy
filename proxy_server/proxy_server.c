@@ -8,15 +8,16 @@
 #endif
 
 const char IMAGENAME[] = {"lserver:"};
-threadpool *pthpool;                                 //thrad pool
-SSL_CTX* g_sslCtx;
-BIO* errBio;
+
+threadpool *pthpool;    //thrad pool
 bool  g_stop;
 
 int  jobs = 0;          //For debug
 int  loop = 0;          //For debug
 
-
+#ifdef SOCKSSL
+SSL_CTX* g_sslCtx;
+BIO* errBio;
 int verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 {
     dbgprint(">>>> verifyCallback() - in: preverify_ok=%d\n", preverify_ok);
@@ -43,6 +44,8 @@ int verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
     
     return preverify_ok;
 }
+#endif
+
 
 void handle_accept(int ep_fd, int listen_fd)
 {
@@ -114,6 +117,7 @@ void handle_write(SOCKCONN *sockConn)
     }
 }
 
+#ifdef SOCKSSL
 void handle_handshake(SOCKCONN *sockConn) {
     
     int rtn = SSL_do_handshake(sockConn->ssl);
@@ -151,7 +155,7 @@ void handle_handshake(SOCKCONN *sockConn) {
         modify_epoll_fd(sockConn);
     }
 }
-
+#endif
 
 void loop_once(int ep_fd, int listen_fd, int read_fd, int write_fd)
 {
@@ -252,10 +256,10 @@ int main(int argc, char*argv[])
 	dbgprint("create threadpool...\n");
 
 #ifdef SOCKSSL
-    char ca_file[MAX_SIZE]    = {0};
-    char path_buf[MAX_SIZE]   = {0};
-    char server_crt[MAX_SIZE] = {0};
-    char server_key[MAX_SIZE] = {0};
+    char ca_file[MAX_BUF_SIZE]    = {0};
+    char path_buf[MAX_BUF_SIZE]   = {0};
+    char server_crt[MAX_BUF_SIZE] = {0};
+    char server_key[MAX_BUF_SIZE] = {0};
     getcwd(path_buf,     sizeof(path_buf));
     snprintf(ca_file,    sizeof(ca_file),    "%s/%s", path_buf, "cert/cacert.pem");
     snprintf(server_crt, sizeof(server_crt), "%s/%s", path_buf, "cert/server_cert.pem");

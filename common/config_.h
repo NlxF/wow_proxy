@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #ifndef SOCKSSL
-#define SOCKSSL
+#define SOCKSSL2
 #endif
 #ifdef SOCKSSL
 #include <openssl/bio.h>
@@ -22,7 +22,7 @@
 #define LSERVER2WSERVER ".lserver2wserver"
 #define WSERVER2LSERVER ".wserver2lserver"
 
-#define MAX_SIZE 1024
+#define MAX_BUF_SIZE 1024
 
 #define psyslog(level, format, ...) \
 syslog(level, format, ##__VA_ARGS__)
@@ -37,9 +37,11 @@ PRINT_BASE( "[%4d-%02d-%02d %02d:%02d:%02d]" format, \
 pTM->tm_year+1900, pTM->tm_mon+1, pTM->tm_mday, pTM->tm_hour+8, pTM->tm_min, pTM->tm_sec, ##__VA_ARGS__ ) ; \
 }while (0)
 
-#define dbgprint(format, ...)  PRINT_0(format, ##__VA_ARGS__)
+#define dbgprint(format, ...)  PRINT_BASE(format, ##__VA_ARGS__)
 
+#ifdef SOCKSSL
 typedef  int (*VerifyCallback)(int, X509_STORE_CTX *);
+#endif
 
 typedef struct
 {
@@ -66,6 +68,7 @@ typedef struct
 typedef struct
 {
     char value[256];
+    int paramNum;
     bool needRsp;
     bool deprecated;
 } Command;

@@ -6,6 +6,20 @@
 #include "../../common/config_.h"
 #include "../../common/utility.h"
 #include "../../common/cJSON.h"
+#include "../sqlite/aid_sql.h"
+
+
+typedef enum
+{
+    DEPRECATED = -1,     //命令已废弃
+    PARAMNUMERR = -2,    //命令需要的参数个数不符
+    PARAMTYPEERR = -3,   //类型不正确
+    COMMANDNOEXIST = -4, //当前命令不存在
+    PARAMNULL = -5,      //参数为空
+    PARAMORDERERR = -6   //参数顺序不正确
+    
+} JSONERROR;
+
 
 /**
   说明：读取sock的字节流

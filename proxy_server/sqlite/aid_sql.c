@@ -15,13 +15,14 @@ static int callback_record(void *data, int argc, char **argv, char **azColName)
     elem e = malloc(sizeof(struct elem));
     
     Command *cmd = malloc(sizeof(Command));
+    memset(cmd, 0, sizeof(Command));
     
     int i;
-    dbgprint("\n");
-    dbgprint("Parse one row:\n");
+//    dbgprint("\n");
+//    dbgprint("Parse one row:\n");
     for(i=0; i<argc; i++)
     {
-        dbgprint("  %7s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+//        dbgprint("  %10s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
         
         if (strncmp(azColName[i], "key", 3)==0)
         {
@@ -38,6 +39,10 @@ static int callback_record(void *data, int argc, char **argv, char **azColName)
         else if (strncmp(azColName[i], "deprecated", 10)==0)
         {
             cmd->deprecated = atoi(argv[i]);
+        }
+        else if (strncmp(azColName[i], "num", 3)==0)
+        {
+            cmd->paramNum = atoi(argv[i]);
         }
     }
     e->info = (void*)cmd;
@@ -56,8 +61,8 @@ static int callback_count(void *count, int argc, char **argv, char **azColName)
 int init_commands_table()
 {
     
-    char buf[MAX_SIZE] = {0};
-    char db_path[MAX_SIZE] = {0};
+    char buf[MAX_BUF_SIZE]     = {0};
+    char db_path[MAX_BUF_SIZE] = {0};
     
     /* db */
     getcwd(buf, sizeof(buf));
@@ -103,8 +108,6 @@ int init_commands_table()
         return -1;
     }
     
-    dbgprint("Operation done successfully\n");
-    
     sqlite3_close(db);
     
     return 0;
@@ -116,6 +119,7 @@ Command *value_for_key(int key)
 {
     if(command_table)
     {
+        dbgprint("search value for key:%d.\n", key);
         char* s = make_key(key);
         elem em = (elem)table_search(command_table, s);
         if (em)

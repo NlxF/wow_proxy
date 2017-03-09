@@ -2,7 +2,10 @@
 #include "sys/select.h"
 #include "unistd.h"
 
+#define FD_TIMEOUT  2
+
 pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;  //rwlock
+
 
 int read_fd(int read_fd, char *szData, size_t nData)
 {
@@ -19,7 +22,7 @@ int read_fd(int read_fd, char *szData, size_t nData)
 	FD_ZERO(&rfds);
 	FD_SET(read_fd, &rfds);
 	
-	tv.tv_sec = 1;
+	tv.tv_sec  = FD_TIMEOUT;
 	tv.tv_usec = 0;
 	
 	int totalByte = 0;
@@ -51,22 +54,316 @@ int read_fd(int read_fd, char *szData, size_t nData)
 	return totalByte;
 }
 
-
-char *analysis_message(char *original_msg, size_t nbytes, int *resp)
+void print_paese_error(int err)
 {
-    if (original_msg==NULL || nbytes<=0 || nbytes>MAX_SIZE)
+    if (err==PARAMNULL)
     {
-        return NULL;
+        dbgprint("参数为空\n");
+    }
+    else if(err==COMMANDNOEXIST)
+    {
+        dbgprint("当前命令不存在\n");
+    }
+    else if(err==PARAMTYPEERR)
+    {
+        dbgprint("参数类型不正确\n");
+    }
+    else if(err==PARAMORDERERR)
+    {
+        dbgprint("参数顺序不正确\n");
+    }
+    else if(err==PARAMNUMERR)
+    {
+        dbgprint("命令参数个数不正确\n");
+    }
+    else if(err==DEPRECATED)
+    {
+        dbgprint("命令已废弃\n");
+    }
+    else
+    {
+        dbgprint("未知错误\n");
+    }
+}
+
+int read_normal_sock(SOCKDATA *sockData, char *szBuf, size_t size)
+{
+    int nbytes;
+    
+    int client_fd = sockData->sockConn->sock_fd;
+    nbytes = read(client_fd, szBuf, size);
+    if(nbytes == -1)
+    {
+        dbgprint("%s:%d:client fd=%d, read -1 and the error is %s\n", __FILE__, __LINE__, client_fd, strerror(errno));
+        if (errno != EAGAIN)
+        {
+            //If errno == EAGAIN, that means we have read all data. So go back to the main loop
+            close (client_fd);
+        }
+        return -1;// break;
+    }
+    else if (nbytes == 0)
+    {
+        //End of file. The remote has closed the connection.
+        dbgprint("%s:%d:End of socket fd=%d. The remote has closed the connection.\n", __FILE__, __LINE__, client_fd);
+        close (client_fd);
+        return -1;// break;
+    }
+    dbgprint("read from client fd=%d\n", client_fd);
+    
+    return nbytes;
+}
+
+#ifdef SOCKSSL
+int read_ssl_sock(SOCKDATA *sockData, char *szBuf, size_t size)
+{
+    int nbytes;
+    
+    SSL *_ssl = sockData->sockConn->ssl;
+    nbytes = SSL_read(_ssl, szBuf, size);
+    int err = SSL_get_error(_ssl, nbytes);
+    
+    if (nbytes == 0)
+    {
+        if (err == SSL_ERROR_ZERO_RETURN)
+        {
+            dbgprint("SSL has been shutdown\n");
+        }
+        else
+        {
+            dbgprint("Connection has been aborted.\n");
+        }
+        free_sockconn(sockData->sockConn);
+        return -1;// break;
+    }
+    if (nbytes < 0)
+    {
+        fd_set fds;
+        struct timeval timeout;
+        switch (err)
+        {
+            case SSL_ERROR_NONE:
+            {
+                // no real error, just try again...
+                dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_NONE \n");
+                return 0;
+            }
+            case SSL_ERROR_ZERO_RETURN:
+            {
+                // peer disconnected...
+                dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_ZERO_RETURN, SSL has been shutdown \n");
+                free_sockconn(sockData->sockConn);
+                break;
+            }
+            case SSL_ERROR_WANT_READ:
+            {
+                // no data available right now, wait a few seconds in case new data arrives...
+                dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_WANT_READ \n");
+                int sock = SSL_get_rfd(_ssl);
+                FD_ZERO(&fds);
+                FD_SET(sock, &fds);
+                
+                timeout.tv_sec  = FD_TIMEOUT;
+                timeout.tv_usec = 0;
+                
+                err = select(sock+1, &fds, NULL, NULL, &timeout);
+                if (err > 0)
+                {
+                    return 0; // more data to read...
+                }
+                if (err == 0)
+                {
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait for data coming timeout\n");
+                }
+                else {
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait for data coming occure a error\n");
+                }
+                break;
+            }
+            case SSL_ERROR_WANT_WRITE:
+            {
+                // socket not writable right now, wait a few seconds and try again...
+                dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_WANT_WRITE \n");
+                int sock = SSL_get_wfd(_ssl);
+                FD_ZERO(&fds);
+                FD_SET(sock, &fds);
+                
+                timeout.tv_sec  = FD_TIMEOUT;
+                timeout.tv_usec = 0;
+                
+                err = select(sock+1, NULL, &fds, NULL, &timeout);
+                if (err > 0)
+                {
+                    return 0; // can write more data now...
+                }
+                if (err == 0)
+                {
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait to write data timeout\n");
+                }
+                else
+                {
+                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait to write data occure a error\n");
+                }
+                break;
+            }
+            default:
+            {
+                dbgprint("%s:%d:SSL_read byte=%d, error=%d\n", __FILE__, __LINE__, nbytes, err);
+                break;
+            }
+        }
+        return -1;// break;
     }
     
-//    uint8_t *podata = (uint8_t*)malloc(nbytes);
-    uint8_t podata[MAX_SIZE] = {0};
+    dbgprint("read from SSL client fd=%d ssl=%d, data=%s\n", sockData->sockConn->sock_fd, _ssl, szBuf);
+    return nbytes;
+}
+#endif
+
+void free_command(int resp[], char *cmds[], int num)
+{
+    if (resp==NULL||cmds==NULL)
+        return;
+    
+    int i;
+    for (i=0; i<num; i++)
+    {
+        if (cmds[i] != NULL)
+        {
+            free(cmds[i]);
+        }
+    }
+    
+    free(resp);
+    free(cmds);
+}
+
+int vaild_item(cJSON *cmds, cJSON *keys, int idx, char *op[])
+{
+    *op = NULL;
+    cJSON *obj = cJSON_GetArrayItem(keys, idx);
+    if(obj == NULL)
+        return PARAMTYPEERR;              //参数类型不正确
+    
+    char *_key = obj->valuestring;
+    obj = cJSON_GetObjectItem(cmds, _key);
+    if (obj == NULL)
+        return PARAMTYPEERR;              //参数类型不正确
+    
+    if(obj->valuestring == NULL)
+        return PARAMTYPEERR;              //参数类型不正确
+        
+    *op = obj->valuestring;
+    dbgprint("key=%s,  value=%s\n", _key, *op);
+    return 0;
+}
+
+int parse_object(cJSON *cmds, cJSON *keys, char**value)
+{
+    if (cmds == NULL || keys == NULL)
+        return PARAMNULL;                 //参数为空
+    
+    dbgprint("parse one json object.\n");
+    char *cmdStr;
+    int needRsp = 0;
+    int paramNum = 1;
+    int deprecated = 1;
+    
+    *value = NULL;
+    int parmSize = cJSON_GetArraySize(keys);
+    if (parmSize > 5 || parmSize <= 1)            //命令参数最大限制5个、最小2个，包括op字段
+        return PARAMNUMERR;                       //命令参数个数不正确
+    
+    dbgprint("params num:%d.\n", parmSize);
+    
+    char szBuf[MAX_BUF_SIZE*2] = { 0 };
+    int rtn;
+    char *op;
+    
+    if ((rtn = vaild_item(cmds, keys, 0, &op)) < 0)
+        return rtn;                                  //参数类型不正确
+
+    Command *cmdObj = value_for_key(atoi(op));
+    if (cmdObj != NULL)
+    {
+        cmdStr = cmdObj->value;
+        needRsp = cmdObj->needRsp;
+        deprecated = cmdObj->deprecated;
+        paramNum = cmdObj->paramNum;
+    }
+    else
+        return COMMANDNOEXIST;   //当前命令不存在
+    
+    if(parmSize-1 != paramNum)
+        return PARAMNUMERR;          //命令需要的参数个数不符
+    if (deprecated==1)               //命令已废弃
+        return DEPRECATED;
+    
+    dbgprint("Get command by key.\n");
+    
+    char *parms[4] = { NULL };       //参数数组, 有效参数个数为4
+    switch(parmSize)
+    {
+        case 5:
+        {
+            if ((rtn = vaild_item(cmds, keys, 4, &parms[3])) < 0)
+                return rtn;                                  //参数类型不正确
+        }
+        case 4:
+        {
+            if ((rtn = vaild_item(cmds, keys, 3, &parms[2])) < 0)
+                return rtn;                                  //参数类型不正确
+        }
+        case 3:
+        {
+            if ((rtn = vaild_item(cmds, keys, 2, &parms[1])) < 0)
+                return rtn;                                  //参数类型不正确
+        }
+        case 2:
+        {
+            if ((rtn = vaild_item(cmds, keys, 1, &parms[0])) < 0)
+                return rtn;                                  //参数类型不正确
+        }
+            break;
+        default:
+            return PARAMNUMERR;
+    }
+    
+    int bufSize = sizeof(szBuf);
+    if (parmSize==2)
+    {
+        snprintf(szBuf, bufSize, cmdStr, parms[0]);
+    }
+    else if(parmSize==3)
+    {
+        snprintf(szBuf, bufSize, cmdStr, parms[0], parms[1]);
+    }
+    else if(parmSize==4)
+    {
+        snprintf(szBuf, bufSize, cmdStr, parms[0], parms[1], parms[2]);
+    }
+    else if(parmSize==5)
+    {
+        snprintf(szBuf, bufSize, cmdStr, parms[0], parms[1], parms[2], parms[3]);
+    }
+    
+    *value = calloc(sizeof(char), bufSize + 1);
+    strncpy(*value, szBuf, bufSize);
+    
+    dbgprint("command:\'%s\' parse from json object.\n", *value);
+    return needRsp;
+}
+
+int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp[])
+{
+    if (original_msg==NULL||nbytes<=0)
+        return 0;
+    
+    uint8_t podata[MAX_BUF_SIZE] = {0};
     if(reverse_crc_data(original_msg, nbytes, (void*)podata)!=0)
     {
         dbgprint("The data from client is invalid: crc error");
-//        if(podata) free(podata);
-        //close (client_fd);
-        return NULL;
+        return 0;
     }
     //parse JSON
     dbgprint("recv json data:%s\n", podata);
@@ -75,187 +372,109 @@ char *analysis_message(char *original_msg, size_t nbytes, int *resp)
     {
         const char *err_msg = cJSON_GetErrorPtr();
         dbgprint("Parse JSON error:%s\n", err_msg);
-//        free(podata);
-        return NULL;
+        return 0;
+    }
+    cJSON *cmdsArray = cJSON_GetObjectItem(root, "values");   //命令数组
+    cJSON *keysArray = cJSON_GetObjectItem(root, "keys");     //键
+    if(cmdsArray==NULL || keysArray==NULL)
+    {
+        dbgprint("values or keys is NULL\n");
+        cJSON_Delete(root);
+        return 0;
     }
     
-    int needResponse = cJSON_GetObjectItem(root, "needResponse")->valueint;
-    char *message = cJSON_GetObjectItem(root, "message")->valuestring;     //后面要把message换成索引，从数据库里读
-    int msgLen = cJSON_GetObjectItem(root, "len")->valueint;
+    int cmdSize = cJSON_GetArraySize(cmdsArray);
+    int keySize = cJSON_GetArraySize(keysArray);
+    if (keySize<=0 || cmdSize<=0)
+    {
+        cJSON_Delete(root);
+        return 0;
+    }
     
-    bzero(original_msg, nbytes);
-    strncpy(original_msg, message, msgLen);
-    original_msg[msgLen] = '\n';
-    original_msg[msgLen+1] = '\0';
+    keySize = keySize>cmdSize?cmdSize:keySize;                //取小
+    dbgprint("key‘s array num=%d.\n", keySize);
     
-    *resp = 0;
+    int *rs = calloc(sizeof(int), keySize);
+    char **values = calloc(sizeof(char*), keySize);
+    
+    dbgprint("start parse json object.\n");
+    int i;
+    for (i=0; i<keySize; i++)
+    {
+        cJSON *one_cmd = cJSON_GetArrayItem(cmdsArray, i);
+        cJSON *one_key = cJSON_GetArrayItem(keysArray, i);
+        
+        rs[i] = parse_object(one_cmd, one_key, &values[i]);
+        if (rs[i] < 0)
+        {
+            print_paese_error(rs[i]);                         //解析是否出错
+        }
+    }
+    *resp = rs;
+    *cmds = values;
     
     cJSON_Delete(root);
     
-    return original_msg;
+    return keySize;
 }
-
 
 void *read_sock(void *p)
 {
     if(p == NULL)
-    {
         return NULL;
-    }
 
-    char szBuf[MAX_SIZE*4] = {0};
+    char szBuf[MAX_BUF_SIZE*4] = {0};
     SOCKDATA *sockData = (SOCKDATA*)p;
     
     while(1)
     {
         int nbytes;
 #ifndef SOCKSSL
-        int client_fd = sockData->sockConn->sock_fd;
-        nbytes = read(client_fd, szBuf, sizeof(szBuf));
-        if(nbytes == -1)
-        {
-            dbgprint("%s:%d:client fd=%d, read -1 and the errno is %d\n", __FILE__, __LINE__, client_fd, errno);
-            if (errno != EAGAIN)
-            {
-                //If errno == EAGAIN, that means we have read all data. So go back to the main loop
-                close (client_fd);
-            }
-            break;
-        }
-        else if (nbytes == 0)
-        {
-            //End of file. The remote has closed the connection.
-            dbgprint("%s:%d:End of socket fd=%d. The remote has closed the connection.\n", __FILE__, __LINE__, client_fd);
-            close (client_fd);
-            break;
-        }
-        dbgprint("read from client fd=%d\n", client_fd);
+        nbytes = read_normal_sock(sockData, szBuf, sizeof(szBuf));
 #else
-        SSL *_ssl = sockData->sockConn->ssl;
-        nbytes = SSL_read(_ssl, szBuf, sizeof(szBuf));
-        int err = SSL_get_error(_ssl, nbytes);
-        
-        if (nbytes == 0)
-        {
-            if (err == SSL_ERROR_ZERO_RETURN)
-            {
-                dbgprint("SSL has been shutdown\n");
-            }
-            else
-            {
-                dbgprint("Connection has been aborted.\n");
-            }
-            free_sockconn(sockData->sockConn);
-            break;
-        }
-        if (nbytes < 0)
-        {
-            fd_set fds;
-            struct timeval timeout;
-            switch (err)
-            {
-                case SSL_ERROR_NONE:
-                {
-                    // no real error, just try again...
-                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_NONE \n");
-                    continue;
-                }
-                case SSL_ERROR_ZERO_RETURN:
-                {
-                    // peer disconnected...
-                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_ZERO_RETURN, SSL has been shutdown \n");
-                    free_sockconn(sockData->sockConn);
-                    break;
-                }
-                case SSL_ERROR_WANT_READ:
-                {
-                    // no data available right now, wait a few seconds in case new data arrives...
-                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_WANT_READ \n");
-                    int sock = SSL_get_rfd(_ssl);
-                    FD_ZERO(&fds);
-                    FD_SET(sock, &fds);
-                    
-                    timeout.tv_sec  = 5;
-                    timeout.tv_usec = 0;
-                    
-                    err = select(sock+1, &fds, NULL, NULL, &timeout);
-                    if (err > 0)
-                    {
-                        continue; // more data to read...
-                    }
-                    if (err == 0)
-                    {
-                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait for data coming timeout\n");
-                    }
-                    else {
-                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait for data coming occure a error\n");
-                    }
-                    break;
-                }
-                case SSL_ERROR_WANT_WRITE:
-                {
-                    // socket not writable right now, wait a few seconds and try again...
-                    dbgprint("%s:%d:%s", __FILE__, __LINE__, "SSL_ERROR_WANT_WRITE \n");
-                    int sock = SSL_get_wfd(_ssl);
-                    FD_ZERO(&fds);
-                    FD_SET(sock, &fds);
-                    
-                    timeout.tv_sec  = 5;
-                    timeout.tv_usec = 0;
-                    
-                    err = select(sock+1, NULL, &fds, NULL, &timeout);
-                    if (err > 0)
-                    {
-                        continue; // can write more data now...
-                    }
-                    if (err == 0)
-                    {
-                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait to write data timeout\n");
-                    }
-                    else
-                    {
-                        dbgprint("%s:%d:%s", __FILE__, __LINE__, "wait to write data occure a error\n");
-                    }
-                    break;
-                }
-                default:
-                {
-                    dbgprint("%s:%d:SSL_read byte=%d, error=%d\n", __FILE__, __LINE__, nbytes, err);
-                    break;
-                }
-            }
-            break;
-        }
-        
-        dbgprint("read from SSL client fd=%d ssl=%d, data=%s\n", sockData->sockConn->sock_fd, _ssl, szBuf);
+        nbytes = read_ssl_sock(sockData, szBuf, sizeof(szBuf));
 #endif
-        int resp = 0;
-//        char *format_message = analysis_message(szBuf, nbytes, &resp);
-        char *format_message = szBuf;
-        if (format_message==NULL)
+        if (nbytes < 0)
+            break;
+        
+        int *resp = NULL;
+        char **cmds = NULL;
+        
+        dbgprint("start analysis message\n");
+        int num = analysis_message(szBuf, nbytes, &cmds, &resp);     //返回命令数组
+        if (num <= 0)
         {
+            dbgprint("analysis message error: no valid command.\n");
             break;
         }
-
+        
+        dbgprint("analysis message finish, start to write pipe\n");
         //write message to pipe note：命名管道的最大BUF是64kb,但是最大原子写是4KB
         //加锁是为了保证如果需要读，当前读出的就是写入的返回
         pthread_rwlock_wrlock(&rwlock);
-        write(sockData->write_fd, szBuf, strnlen(format_message, nbytes));
-		
-		dbgprint("need response?%s\n", resp==0?"NO":"YES");
-        if(resp)
+        int idx;
+        for(idx=0; idx<num; idx++)
         {
-			dbgprint("Request need response\n");
-			nbytes = read_fd(sockData->read_fd, szBuf, sizeof(szBuf));
-			if(nbytes > 0)
+            if(resp[idx] >=0 && cmds[idx] != NULL)
             {
-				dbgprint("read data:%s and ready to send\n", szBuf);
-				sockData->msg = szBuf;
-            	sockData->size = nbytes;
-            	write_sock(sockData);
-			}	
+                write(sockData->write_fd, cmds[idx], strnlen(cmds[idx], nbytes));
+                dbgprint("need response?%s\n", resp[idx]==0?"NO":"YES");
+                if(resp[idx] == 1)
+                {
+                    dbgprint("Request need response\n");
+                    nbytes = read_fd(sockData->read_fd, szBuf, sizeof(szBuf));
+                    if(nbytes > 0)
+                    {
+                        dbgprint("read data:%s and ready to send\n", szBuf);
+                        sockData->msg = szBuf;
+                        sockData->size = nbytes;
+                        write_sock(sockData);
+                    }	
+                }
+            }
         }
         pthread_rwlock_unlock(&rwlock);
+        free_command(resp, cmds, num);
     }
     
     free_sockData(sockData);
@@ -267,25 +486,23 @@ void *read_sock(void *p)
 void *write_sock(void *p)
 {
     if(p == NULL)
-    {
 	    return NULL;
-    }
 
     SOCKDATA *sockData = (SOCKDATA*)p;
 
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddNumberToObject(root, "needResponse", 0);
     cJSON_AddStringToObject(root, "message", sockData->msg);
     cJSON_AddNumberToObject(root, "len", sockData->size);
     char *json_str = cJSON_Print(root);
 
-	int len;
+    uint8_t buf[MAX_BUF_SIZE*4] = {0};
 	size_t size = strlen(json_str);
-    if(size > MAX_SIZE)
+    if(size > sizeof(buf))
     {
+        cJSON_Delete(root);
         return NULL;
     }
-    uint8_t buf[MAX_SIZE] = {0};
+    int len;
 	if((len=crc_data(json_str, size, buf))==-1)
 	{
         cJSON_Delete(root);
@@ -301,7 +518,7 @@ void *write_sock(void *p)
     SSL *_ssl = sockData->sockConn->ssl;
     nbytes = SSL_write(_ssl, buf, len);
 #endif
+    
     cJSON_Delete(root);
-
 	return NULL;
 }

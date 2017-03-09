@@ -9,6 +9,7 @@
 //  Copyright © 2017年 luxiaofei. All rights reserved.
 //
 
+#ifdef SOCKSSL
 
 #include "../../common/config_.h"
 
@@ -21,6 +22,8 @@ void ShowCerts(SSL* ssl);
 void shutdown_ssl(SSL *ssl);
 
 void destroy_ssl(SSL_CTX *ctx);
+
+#endif
 
 
 #endif
