@@ -39,3 +39,4 @@ https.cer
 test/ss/wowserver
 *.lua
 test/ss/client/soap-client
+proxy_server/sqlite/aidsql-test
