@@ -8,6 +8,11 @@
 #ifndef SOCKSSL
 #define SOCKSSL2
 #endif
+
+#ifndef _SOAP
+#define _SOAP
+#endif
+
 #ifdef SOCKSSL
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -71,7 +76,10 @@ typedef struct
     int paramNum;
     bool needRsp;
     bool deprecated;
+    bool is2Pipe;
 } Command;
+
+
 
 
 /** JSON消息结构

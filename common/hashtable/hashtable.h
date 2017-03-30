@@ -20,7 +20,7 @@ typedef struct elem* elem;
 
 
 /* Hash table interface */
-char* make_key(int n);
+char* make_key_by_int(int n);
 
 typedef struct table* table;
 

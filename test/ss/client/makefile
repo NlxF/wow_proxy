@@ -9,4 +9,9 @@
 
 #rm ./obj/*
 
-gcc clientssl.c -o clientssl -I/usr/include -lssl -lcrypto
+#gcc clientssl.c -o clientssl -I/usr/include -lssl -lcrypto
+
+gcc SOAP-client.c -o soap-client
+
+
+

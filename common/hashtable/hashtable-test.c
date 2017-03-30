@@ -24,20 +24,20 @@ void test()
         for (i = 0; i < n; i++)
         {
             elem e = malloc(sizeof(struct elem));
-            e->word = make_key(j*n+i);	/* diff from C0 */
+            e->word = make_key_by_int(j*n+i);	/* diff from C0 */
             printf("%s%s%s%d\n", "make key:", e->word," for value:", j*n+i);
             e->info = j*n+i;
             table_insert(H, e);
         }
         for (i = 0; i < n; i++)
         {
-            char* s = make_key(j*n+i);
+            char* s = make_key_by_int(j*n+i);
             assert(((elem)table_search(H, s))->info == j*n+i); /* "missed existing element" */
             free(s);
         }
         for (i = 0; i < n; i++)
         {
-            char* s = make_key((j+1)*n+i);
+            char* s = make_key_by_int((j+1)*n+i);
             assert(table_search(H, s) == NULL); /* "found nonexistent element" */
             free(s);
         }

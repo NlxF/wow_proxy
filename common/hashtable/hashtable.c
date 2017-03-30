@@ -104,8 +104,8 @@ ht_key elem_key(ht_elem e)
     return ((elem)e)->word;
 }
 
-/* make_key function */
-char* make_key(int n)
+/* make_key_by_int function */
+char* make_key_by_int(int n)
 {
     char* buf = malloc(MAXINT_CHARS * sizeof(char));
     snprintf(buf, MAXINT_CHARS, "%d", n);

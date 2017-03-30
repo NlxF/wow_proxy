@@ -4,6 +4,7 @@
 
 #define FD_TIMEOUT  2
 
+
 pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;  //rwlock
 
 
@@ -220,9 +221,9 @@ int read_ssl_sock(SOCKDATA *sockData, char *szBuf, size_t size)
 }
 #endif
 
-void free_command(int resp[], char *cmds[], int num)
+void free_command(int resp[], char *cmds[], int is2Pipe[], int num)
 {
-    if (resp==NULL||cmds==NULL)
+    if (resp==NULL||cmds==NULL||is2Pipe==NULL)
         return;
     
     int i;
@@ -235,6 +236,7 @@ void free_command(int resp[], char *cmds[], int num)
     }
     
     free(resp);
+    free(is2Pipe);
     free(cmds);
 }
 
@@ -258,10 +260,10 @@ int vaild_item(cJSON *cmds, cJSON *keys, int idx, char *op[])
     return 0;
 }
 
-int parse_object(cJSON *cmds, cJSON *keys, char**value)
+int parse_object(cJSON *cmds, cJSON *keys, char**value, int *fs)
 {
     if (cmds == NULL || keys == NULL)
-        return PARAMNULL;                 //参数为空
+        return PARAMNULL;                        //参数为空
     
     dbgprint("parse one json object.\n");
     char *cmdStr;
@@ -269,6 +271,7 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value)
     int paramNum = 1;
     int deprecated = 1;
     
+    *fs = 0;
     *value = NULL;
     int parmSize = cJSON_GetArraySize(keys);
     if (parmSize > 5 || parmSize <= 1)            //命令参数最大限制5个、最小2个，包括op字段
@@ -282,7 +285,7 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value)
     
     if ((rtn = vaild_item(cmds, keys, 0, &op)) < 0)
         return rtn;                                  //参数类型不正确
-
+    
     Command *cmdObj = value_for_key(atoi(op));
     if (cmdObj != NULL)
     {
@@ -290,6 +293,7 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value)
         needRsp = cmdObj->needRsp;
         deprecated = cmdObj->deprecated;
         paramNum = cmdObj->paramNum;
+        *fs = cmdObj->is2Pipe;
     }
     else
         return COMMANDNOEXIST;   //当前命令不存在
@@ -354,7 +358,7 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value)
     return needRsp;
 }
 
-int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp[])
+int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp[], int *is2Pipe[])
 {
     if (original_msg==NULL||nbytes<=0)
         return 0;
@@ -396,6 +400,7 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
     
     int *rs = calloc(sizeof(int), keySize);
     char **values = calloc(sizeof(char*), keySize);
+    int *fs = calloc(sizeof(int), keySize);                   //写入对象
     
     dbgprint("start parse json object.\n");
     int i;
@@ -404,7 +409,7 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
         cJSON *one_cmd = cJSON_GetArrayItem(cmdsArray, i);
         cJSON *one_key = cJSON_GetArrayItem(keysArray, i);
         
-        rs[i] = parse_object(one_cmd, one_key, &values[i]);
+        rs[i] = parse_object(one_cmd, one_key, &values[i], &fs[i]);
         if (rs[i] < 0)
         {
             print_paese_error(rs[i]);                         //解析是否出错
@@ -412,11 +417,13 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
     }
     *resp = rs;
     *cmds = values;
+    *is2Pipe = fs;
     
     cJSON_Delete(root);
     
     return keySize;
 }
+
 
 void *read_sock(void *p)
 {
@@ -437,51 +444,130 @@ void *read_sock(void *p)
         if (nbytes < 0)
             break;
         
-        int *resp = NULL;
-        char **cmds = NULL;
+        int *resp = NULL;        //是否有效命令
+        char **cmds = NULL;      //命令字符串
+        int *is2Pipe = NULL;     //操作类型,写入管道还是数据库
         
         dbgprint("start analysis message\n");
-        int num = analysis_message(szBuf, nbytes, &cmds, &resp);     //返回命令数组
+        int num = analysis_message(szBuf, nbytes, &cmds, &resp, &is2Pipe);     //返回命令数组
         if (num <= 0)
         {
             dbgprint("analysis message error: no valid command.\n");
             break;
         }
+        dbgprint("analysis message finish, start to write.\n");
         
-        dbgprint("analysis message finish, start to write pipe\n");
-        //write message to pipe note：命名管道的最大BUF是64kb,但是最大原子写是4KB
-        //加锁是为了保证如果需要读，当前读出的就是写入的返回
-        pthread_rwlock_wrlock(&rwlock);
         int idx;
         for(idx=0; idx<num; idx++)
         {
             if(resp[idx] >=0 && cmds[idx] != NULL)
             {
-                write(sockData->write_fd, cmds[idx], strnlen(cmds[idx], nbytes));
-                dbgprint("need response?%s\n", resp[idx]==0?"NO":"YES");
-                if(resp[idx] == 1)
+                if(is2Pipe[idx] == 1)
                 {
-                    dbgprint("Request need response\n");
-                    nbytes = read_fd(sockData->read_fd, szBuf, sizeof(szBuf));
-                    if(nbytes > 0)
-                    {
-                        dbgprint("read data:%s and ready to send\n", szBuf);
-                        sockData->msg = szBuf;
-                        sockData->size = nbytes;
-                        write_sock(sockData);
-                    }	
+                    dbgprint("write pipe message: %s\n", cmds[idx]);
+                    write_pipe(sockData, resp[idx], cmds[idx], strnlen(cmds[idx], nbytes));
+                }
+                else
+                {
+                    dbgprint("write database message: %s\n", cmds[idx]);
+                    write_database(cmds[idx]);
                 }
             }
         }
-        pthread_rwlock_unlock(&rwlock);
-        free_command(resp, cmds, num);
+        
+        free_command(resp, cmds, is2Pipe, num);
     }
     
     free_sockData(sockData);
+    
+    // close_db();
+    
     dbgprint("Read job Finish\n");
     
 	return NULL;
 }
+
+
+/**
+ 写入管道
+ @param sockData SOCKDATA结构体
+ @param resp 是否需要返回
+ @param cmd 写入的命令
+ @param size 命令长度
+ */
+void write_pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
+{
+    int nbytes;
+    char szBuf[MAX_BUF_SIZE*4] = {0};
+    
+    //命名管道的最大BUF是64kb,但是最大原子写是4KB, 加锁是为了保证如果需要读，当前读出的就是写入的返回
+    pthread_rwlock_wrlock(&rwlock);
+    
+    write(sockData->write_fd, cmd, size);
+    dbgprint("need response?%s\n", resp==0?"NO":"YES");
+    if(resp == 1)
+    {
+        dbgprint("Request need response\n");
+        nbytes = read_fd(sockData->read_fd, szBuf, sizeof(szBuf));
+        if(nbytes > 0)
+        {
+            dbgprint("read data:%s and ready to send\n", szBuf);
+            sockData->msg = szBuf;
+            sockData->size = nbytes;
+            write_sock(sockData);
+        }
+    }
+    
+    pthread_rwlock_unlock(&rwlock);
+}
+
+//static sqlite3 *db;
+void write_database(char cmds[])
+{
+    if(cmds==NULL || strlen(cmds)<=0)
+        return;
+    
+    int rc;
+    sqlite3 *db;
+    if (db == NULL)
+    {
+        char buf[MAX_BUF_SIZE]     = {0};
+        char db_path[MAX_BUF_SIZE] = {0};
+        
+        getcwd(buf, sizeof(buf));
+        snprintf(db_path, sizeof(db_path), "%s/%s", buf, "commands.db");
+        
+        rc = sqlite3_open(db_path, &db);
+        if( rc )
+        {
+            dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(db), db_path);
+            return -1;
+        }
+        dbgprint("Opened database successfully\n");
+    }
+    
+    char *zErrMsg = NULL;
+    rc = sqlite3_exec(db, cmds, 0, 0, &zErrMsg);
+    if( rc != SQLITE_OK )
+    {
+        dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
+        sqlite3_free(zErrMsg);
+        // close_db();
+        return -1;
+    }
+    sqlite3_close(db);
+    // close_db();
+}
+
+//void close_db()
+//{
+//    /*close db*/
+//    if (db != NULL)
+//    {
+//        sqlite3_close(db);
+//        db == NULL;
+//    }
+//}
 
 void *write_sock(void *p)
 {
