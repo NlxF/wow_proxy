@@ -141,7 +141,10 @@ Command *value_for_key(int key)
 
 void destory_commands_table()
 {
-    
+    if (command_table)
+    {
+        table_free(command_table);
+    }
 }
 
 

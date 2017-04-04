@@ -41,14 +41,14 @@ typedef struct _threadpool_job_queue
 typedef struct _threadpool
 {
 	int                        threads_num;      //线程数
-	pthread_t                 *pthreads;         //线程指针数
+	pthread_t                 *pthreads;         //线程指针
 	threadpool_job_queue      *job_queue;        //指向队列指针
 }threadpool;
 
 typedef struct _thread_data
 {
 	pthread_mutex_t   *pmutex;
-	threadpool       *pthread;
+	threadpool        *pthread;
 }thread_data;
 
 

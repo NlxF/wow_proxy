@@ -9,7 +9,7 @@ import multiprocessing
 import random
 from contextlib import closing
 
-HOST = '192.168.1.116'
+HOST = '192.168.1.115'
 PORT = 8083
 MESSAGE = "Hello world!"
 
@@ -24,16 +24,16 @@ def assembly_request(cmds):
 		vals.append(t1)
 
 	if len(vals)==0 or len(keys)==0: 
-		return None 
+		return None
 	else:
 		return {"values": vals, "keys": keys}
 
 
-def test_performance(msg):
+def test_performance(account):
 
-	# cmd = [[{'op': '1'}, {'name': 'username'}, {'pwd': 'password'}], [{'op': '2'}, {'name': 'username'}]]
-    # cmd = [[{'op': '12'}, {'account': 'ads'}, {'name': '20'}]]
-	cmd = [[{'op': '13'}, {'role': 'CHRACE;UPLEVEL'}, {'label': u'变种族;升级'}, {'value': '10'}]]
+	cmd = [[{'op': '1'}, {'name': account}, {'pwd': '123456'}]] #, [{'op': '2'}, {'name': 'username'}]]
+	# cmd = [[{'op': '12'}, {'account': 'ads'}, {'name': '20'}]]
+	# cmd = [[{'op': '13'}, {'role': 'CHRACE;UPLEVEL'}, {'label': u'变种族;升级'}, {'value': '10'}]]
         
 	dic = assembly_request(cmd)
 	news_str = json.dumps(dic)
@@ -59,11 +59,12 @@ def test_performance(msg):
 
 
 if __name__ == "__main__":
-	#pool = multiprocessing.Pool(processes=1)
-	for i in xrange(200):
-		msg = "From client %d, hello world!" %(i)
-		test_performance(msg)
-
+	pool_size = multiprocessing.cpu_count() * 2
+	pool = multiprocessing.Pool(processes=pool_size)
+	for i in xrange(100):
+		name = '{0}{1}'.format('usernameee', i)
+		pool.apply_async(test_performance, (name, ))
+	pool.close()
+	pool.join()
 	print "Sub-process(es) done."
-	#msg = 'From client, hello world!'
-	#test_performance(msg)
+	

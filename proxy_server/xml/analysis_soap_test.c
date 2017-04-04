@@ -25,11 +25,11 @@ int main()
                         "</SOAP-ENV:Body>"
                     "</SOAP-ENV:Envelope>";
     
-    char *rst = NULL;
-
-    analysis_response(source, strlen(source), &rst);
+    char rst[1024*4] = {0};
+    size rst_len = sizeof(rst);
+    
+    analysis_soap_response(source, strlen(source), rst, &rst_len);
     
     printf(rst);
 
-    free(rst);
 }

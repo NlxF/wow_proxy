@@ -32,8 +32,8 @@ int main(int argc, char **argv)
     struct hostent *hp;            // used to get server's IP address
     struct sockaddr_in serverAddr; // server address structure
 
-    char serverHostName[] = "192.168.0.136";
-    //char serverHostName[] = "172.16.0.54";
+    //char serverHostName[] = "127.0.0.1";
+    char serverHostName[] = "192.168.1.115";
     char serverPortNumber[] = "7878";
     int requestLength, contentLength, countOut, countIn;
     #define MAXLINE 1024
@@ -104,26 +104,34 @@ int main(int argc, char **argv)
     sprintf(request, "%s\r\n", request);
     requestLength = strlen(request);
 
-    // send the two strings to both the server and standard out
-    countOut = write(socket_fd, request, requestLength);
-    if (countOut != requestLength)
-      unix_error("write() error");
-    countOut = write(socket_fd, soapEnvelope, contentLength);
-    if (countOut != contentLength)
-      unix_error("write() error");
-    printf("%s%s\n\n", request, soapEnvelope);
-
-    // read in the response from the server and echo it to standard out
-    while((countIn = read(socket_fd, buf, MAXLINE-1)) > 0)
-    {
-      fputs(buf, stdout);
+    int idx;
+    for (idx=0; idx<2; idx++){
+        
+        // send the two strings to both the server and standard out
+        countOut = write(socket_fd, request, requestLength);
+        if (countOut != requestLength){
+            unix_error("write() error");
+        }
+        countOut = write(socket_fd, soapEnvelope, contentLength);
+        if (countOut != contentLength){
+            unix_error("write() error");
+        }
+        printf("%s%s\n\n", request, soapEnvelope);
+        
+        // read in the response from the server and echo it to standard out
+        while((countIn = read(socket_fd, buf, MAXLINE-1)) > 0){
+            fputs(buf, stdout);
+        }
+        
+        if (countIn <= 0){
+            unix_error("read() error");
+        }
     }
-    if (countIn < 0)
-      unix_error("read() error");
 
     // Close the socket.
-    if (close(socket_fd) < 0)
-      unix_error("close() error");
+    if (close(socket_fd) < 0){
+        unix_error("close() error");
+    }
 
     exit(0);
 }//main
@@ -135,12 +143,12 @@ int main(int argc, char **argv)
 */
 void unix_error(char *msg)
 {
-   fprintf(stderr, "%s: %s (errno = %d)\n", msg, strerror(errno), errno);
+   printf("%s: %s (errno = %d)\n", msg, strerror(errno), errno);
    exit(1);
 }
 
 void dns_error(char *msg)
 {
-   fprintf(stderr, "%s: %s (h_errno = %d)\n", msg, hstrerror(h_errno), h_errno);
+   printf("%s: %s (h_errno = %d)\n", msg, hstrerror(h_errno), h_errno);
    exit(1);
 }

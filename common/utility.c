@@ -1,5 +1,8 @@
 #include "utility.h"
+#include "sys/select.h"
+#include "unistd.h"
 
+#define FD_TIMEOUT  2
 
 //-----------------------------------------------DAEMON-------------------------------------------//
 int create_daemon(int nochdir, int noclose)
@@ -204,6 +207,7 @@ int set_non_blocking(int sockfd)
 	return 0;
 }
 
+
 int create_epoll(int sock_fd)
 {
 	int   epfd;
@@ -255,6 +259,7 @@ void modify_epoll_fd(SOCKCONN *sockConn)
     }
 }
 
+#ifndef _SOAP
 bool redirect_namedpip(int *write_fd, int *read_fd)
 {
     char l2w[MAX_BUF_SIZE]              = {0};
@@ -285,6 +290,7 @@ bool redirect_namedpip(int *write_fd, int *read_fd)
     
     return true;
 }
+#endif
 
 SOCKCONN *malloc_sockconn(int ep_fd, int sock_fd, int events)
 {
@@ -320,7 +326,7 @@ void free_sockconn(SOCKCONN *sockConn)
     }
 }
 
-SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int read_fd, int write_fd)
+SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int container[2]/*int read_fd, int write_fd*/)
 {
     SOCKDATA *pdata = (SOCKDATA*)malloc(sizeof(SOCKDATA));
     if(pdata == NULL)
@@ -329,8 +335,12 @@ SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int read_fd, int write_fd)
     }
     bzero(pdata, sizeof(SOCKDATA));
     pdata->sockConn = sockConn;
-    pdata->write_fd = write_fd;
-    pdata->read_fd = read_fd;
+#ifdef _SOAP
+    pdata->sock_table = (void*)container[0];
+#else
+    pdata->write_fd = container[1];
+    pdata->read_fd  = container[0];
+#endif
     
     return pdata;
 }
@@ -342,4 +352,162 @@ void free_sockData(SOCKDATA *sockData)
         free(sockData);
     }
 }
+
+
+/**
+    设置sock 为 keepalive
+ */
+int set_sock_keepalive(int socket_fd)
+{
+    if(socket_fd <= 0)
+        return -1;
+    
+    int keep_alive = 1;
+    int keep_idle = 5, keep_interval = 1, keep_count = 3;
+    if (-1==setsockopt(socket_fd, SOL_SOCKET, SO_KEEPALIVE, &keep_alive, sizeof(keep_alive)))
+    {
+        dbgprint("%s:%d:%s:%s\n", __FILE__, __LINE__, "set socket to keep alive error", strerror(errno));
+        return -1;
+    }
+    if (-1==setsockopt(socket_fd, IPPROTO_TCP, TCP_KEEPIDLE, &keep_idle, sizeof(keep_idle)))
+    {
+        dbgprint("%s:%d:%s:%s\n", __FILE__, __LINE__, "set socket keep alive idle error", strerror(errno));
+        return -1;
+    }
+    if (-1==setsockopt(socket_fd, IPPROTO_TCP, TCP_KEEPINTVL, &keep_interval, sizeof(keep_interval)))
+    {
+        dbgprint("%s:%d:%s:%s\n", __FILE__, __LINE__, "set socket keep alive interval error", strerror(errno));
+        return -1;
+    }
+    if (-1==setsockopt(socket_fd, IPPROTO_TCP, TCP_KEEPCNT, &keep_count, sizeof(keep_count)))
+    {
+        dbgprint("%s:%d:%s:%s\n", __FILE__, __LINE__, "set socket keep alive count error", strerror(errno));
+        return -1;
+    }
+    
+    unsigned int timeout = 10000;
+    if (-1==setsockopt(socket_fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &timeout, sizeof(timeout)))
+    {
+        dbgprint("%s:%d:%s:%s\n", __FILE__, __LINE__, "set TCP_USER_TIMEOUT option error", strerror(errno));
+        return -1;
+    }
+    
+    return 0;
+}
+
+
+ssize_t readn_fd(int fd_read, char *szData, size_t nData)
+{
+    if(fd_read < 0)
+        return -1;
+    
+    bzero(szData, nData);
+    
+    fd_set rfds;
+    struct timeval tv;
+    
+    FD_ZERO(&rfds);
+    FD_SET(fd_read, &rfds);
+    
+    tv.tv_sec  = FD_TIMEOUT;
+    tv.tv_usec = 0;
+    
+    ssize_t totalByte = 0;
+    int retval = select(fd_read+1, &rfds, NULL, NULL, &tv);
+    if(retval > 0)
+    {
+        usleep(100*1000);            //微秒，等待0.1秒
+        if(FD_ISSET(fd_read, &rfds))
+        {
+            char szBuf[MAX_BUF_SIZE] = {0};
+            ssize_t nReadByte;
+            do{
+                nReadByte = read(fd_read, szBuf, MAX_BUF_SIZE);
+                totalByte += nReadByte;
+                if(totalByte < nData)
+                    strcat(szData, szBuf);
+                else
+                {
+                    totalByte -= nReadByte;
+                    break;
+                }
+            }while(nReadByte == MAX_BUF_SIZE);
+        }
+    }
+    else
+    {
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "The operation was timed out");
+    }
+    
+    return totalByte;
+}
+
+
+ssize_t writen_fd(int fd, const void * vptr, size_t n)
+{
+    size_t         nleft;
+    ssize_t        nwritten;
+    const char     *ptr;
+    
+    ptr = vptr;
+    nleft = n;
+    while (nleft > 0)
+    {
+        if ((nwritten=write(fd, ptr, nleft)) <= 0)
+        {
+            if (nwritten < 0 && errno == EINTR)
+            {
+                dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "send data intterupt");
+                nwritten = 0;              /* and call write() again */
+            }
+            else
+            {
+                dbgprint("%s:%d:write data error:%d, errno:%d\n", __FILE__, __LINE__, nwritten, errno);
+                return (- 1);              /* error */
+            }
+        }
+        
+        nleft -= nwritten;
+        ptr += nwritten;
+        dbgprint("already write fd:%d, %d bytes, left %d, errno=%d, message:%s\n", fd, nwritten, nleft, errno, strerror(errno));
+    }
+    return (n) ;
+}
+
+int make_soap_socket()
+{
+    int socket_fd;
+    struct sockaddr_in serverAddr;
+    
+    // create a reliable, stream socket using TCP.
+    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "try to create soap socket error...");
+        return 0;
+    }
+    
+    // set sock keepalive
+    //if(set_sock_keepalive(socket_fd) < 0)
+    //{
+    //    dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "set sock keepalive error...");
+    //    return 0;
+    //}
+    
+    bzero(&serverAddr, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = inet_addr( SOAPSERVERIP );
+    serverAddr.sin_port = htons( SOAPSERVERPORT );
+    // Establish a connection with the server.
+    if (connect(socket_fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
+    {
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "try to make connect error...");
+        return 0;
+    }
+    
+    return socket_fd;
+}
+
+
+
+
 

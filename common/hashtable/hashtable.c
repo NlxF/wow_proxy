@@ -143,6 +143,7 @@ int hash(ht_key s, int m)
 void _elem_free(ht_elem e)
 {
     free(((elem)e)->word);
+    free(((elem)e)->info);
     free(e);
 }
 

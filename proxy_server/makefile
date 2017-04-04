@@ -18,7 +18,11 @@ gcc -g -Wall -c ./sqlite/sqlite3.c -o ./obj/sqlite3.o -I./sqlite
 
 gcc -g -Wall -c ./sqlite/aid_sql.c -o ./obj/aid_sql.o -I../common -I../common/hashtable
 
-gcc -g -o proxy_server proxy_server.c ./obj/crc8.o ./obj/utility.o ./obj/cJSON.o ./obj/aidsock.o ./obj/aidssl.o ./obj/threadpool.o ./obj/hashtable.o ./obj/sqlite3.o ./obj/aid_sql.o -I../common -I../common/hashtable -I./thraedpool -lpthread -lm -lssl -lcrypto -ldl
+gcc -g -Wall -c ./xml/xml.c -o ./obj/xml.o
+
+gcc -g -Wall -c ./xml/analysis_soap.c -o ./obj/analysis_soap.o
+
+gcc -g -o proxy_server proxy_server.c ./obj/crc8.o ./obj/utility.o ./obj/cJSON.o ./obj/aidsock.o ./obj/aidssl.o ./obj/threadpool.o ./obj/hashtable.o ./obj/sqlite3.o ./obj/aid_sql.o ./obj/xml.o ./obj/analysis_soap.o -I../common -I../common/hashtable -I./thraedpool -lpthread -lm -lssl -lcrypto -ldl
 
 rm ./obj/*
 

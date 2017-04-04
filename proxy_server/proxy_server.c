@@ -93,15 +93,15 @@ void handle_accept(int ep_fd, int listen_fd)
     }
 }
 
-void handle_read(SOCKCONN *sockConn, int read_fd, int write_fd)
+void handle_read(SOCKCONN *sockConn, int container[2])
 {
-    if (sockConn==NULL||read_fd<=0||write_fd<=0) return;
+    if (sockConn==NULL) return;
     
-    SOCKDATA *sockData = malloc_sockData(sockConn, read_fd, write_fd);
+    SOCKDATA *sockData = malloc_sockData(sockConn, container);
     if(sockData != NULL)
     {
-        threadpool_add_work(pthpool, (void*)read_sock, (void*)sockData);
-        dbgprint("new job read, number=%d, with client fd=%d\n", ++jobs, sockConn->sock_fd);
+        threadpool_add_work(pthpool, (void*)read_sock_func, (void*)sockData);
+        dbgprint("new read job, job number=%d, with fd=%d\n", ++jobs, sockConn->sock_fd);
     }
 }
 
@@ -109,11 +109,12 @@ void handle_write(SOCKCONN *sockConn)
 {
     if (sockConn==NULL) return;
     
-    SOCKDATA *sockData = malloc_sockData(sockConn, 0, 0);
+    int container[2] = {0};
+    SOCKDATA *sockData = malloc_sockData(sockConn, container);
     if(sockData != NULL)
     {
-        threadpool_add_work(pthpool, (void*)write_sock, (void*)sockData);
-        dbgprint("new job write, with client fd=%d send data out", sockConn->sock_fd);
+        threadpool_add_work(pthpool, (void*)write_sock_func, (void*)sockData);
+        dbgprint("new write job, with fd=%d send data out", sockConn->sock_fd);
     }
 }
 
@@ -157,7 +158,7 @@ void handle_handshake(SOCKCONN *sockConn) {
 }
 #endif
 
-void loop_once(int ep_fd, int listen_fd, int read_fd, int write_fd)
+void loop_once(int ep_fd, int listen_fd, int container[2])
 {
     int    nfds;                             //ready I/O fd
     struct epoll_event event;
@@ -175,12 +176,12 @@ void loop_once(int ep_fd, int listen_fd, int read_fd, int write_fd)
         if((_event & EPOLLERR) || (_event & EPOLLHUP) /*||(!(eevents & EPOLLIN))*/)
         {
             //an error has occured on this fd
-            dbgprint("%s:%d:An error:%d(%s) has occured on this fd:%d, or the socket is not ready for reading%s\n",__FILE__, __LINE__, errno, strerror(errno), sockConn->sock_fd);
+            dbgprint("%s:%d:An error:%d(%s) has occured on this fd:%d, or the socket is not ready for reading\n",__FILE__, __LINE__, errno, strerror(errno), sockConn->sock_fd);
             
             close(sockConn->sock_fd);
             continue;
         }
-        else if(_event & EPOLLIN)                 //data in include
+        else if(_event & EPOLLIN)                   //data in include
         {
             if(sockConn->sock_fd == listen_fd)
             {
@@ -192,7 +193,7 @@ void loop_once(int ep_fd, int listen_fd, int read_fd, int write_fd)
             if (sockConn->sslConnected)
             {
 #endif
-                handle_read(sockConn, read_fd, write_fd);
+                handle_read(sockConn, container);
                 continue;
 #ifdef SOCKSSL
             }
@@ -224,22 +225,52 @@ void handleInterrupt(int sig)
 
 int main(int argc, char*argv[])
 {
+
+    /* open syslog */
+    openlog(IMAGENAME, LOG_CONS | LOG_PID, 0);
     
-    int  read_fd;      //read fd
-    int  write_fd;     //write fd
+    /* ignore sigpipe */
+    signal(SIGPIPE, SIG_IGN);
     
+    /* handle stop interrupt */
     g_stop = false;
     signal(SIGINT, handleInterrupt);
-    
-    //open syslog
-    openlog(IMAGENAME, LOG_CONS | LOG_PID, 0);
 
-    //redirect named pip
+    /* create threadpool */
+    int thread_num = get_cpu_num();
+    pthpool = threadpool_init(thread_num);
+    if(pthpool == NULL)
+    {
+        return -1;
+    }
+    dbgprint("create threadpool...\n");
+    
+    
+    int container[2] = {0};                 // embark write_fd、read_fd or soap_sock
+#ifdef _SOAP
+    /* init sock table */
+    /* SOAP服务端在一次通信结束后会close, 所以不能复用socket  */
+    /*
+    table  soap_sock_table;                 //sock hash table
+    soap_sock_table = init_soap_socket_table(pthpool->pthreads, thread_num);   //same num as thread
+    if (!soap_sock_table)
+    {
+        return -1;
+    }
+    container[0] = soap_sock_table;
+    */
+#else
+    /* redirect named pip */
+    int  read_fd;                           //read fd
+    int  write_fd;                          //write fd
     if(!redirect_namedpip(&write_fd, &read_fd))
     {
         return -1;
     }
-
+    container[0] = read_fd;
+    container[1] = write_fd;
+#endif
+    
     /* init command table */
     if( init_commands_table() !=0 )
     {
@@ -247,13 +278,6 @@ int main(int argc, char*argv[])
     }
     dbgprint("init commands table...\n");
     
-    /* create threadpool */
-    pthpool = threadpool_init(get_cpu_num());
-    if(pthpool == NULL)
-    {
-        return -1;
-    }
-	dbgprint("create threadpool...\n");
 
 #ifdef SOCKSSL
     char ca_file[MAX_BUF_SIZE]    = {0};
@@ -273,7 +297,7 @@ int main(int argc, char*argv[])
     errBio = BIO_new_fd(2, BIO_NOCLOSE);
 #endif
     
-    //start socket
+    /* start socket */
     int listen_fd = create_server(8083);
     if (listen_fd <= 0)
     {
@@ -282,7 +306,7 @@ int main(int argc, char*argv[])
     
 	dbgprint("start listening...\n");
 
-    //create epoll fd
+    /* create epoll fd */
     int ep_fd = create_epoll(listen_fd);
     if(ep_fd < 0)
     {
@@ -293,11 +317,11 @@ int main(int argc, char*argv[])
     
     add_epoll_fd(sockConn);
     
-    //start loop
+    /* start loop */
 	dbgprint("start loop...\n");
     while(!g_stop)
     {
-        loop_once(ep_fd, listen_fd, read_fd, write_fd);
+        loop_once(ep_fd, listen_fd, container);
     }
     
     close(listen_fd);

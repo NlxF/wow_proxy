@@ -1,59 +1,12 @@
 #include "aidsock.h"
-#include "sys/select.h"
-#include "unistd.h"
+#include "../xml/analysis_soap.h"
 
-#define FD_TIMEOUT  2
 
+void write2db(char cmds[]);
+void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size);
 
 pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;  //rwlock
 
-
-int read_fd(int read_fd, char *szData, size_t nData)
-{
-    if(read_fd < 0)
-    {
-        return -1;
-    }
-    
-	bzero(szData, nData);
-
-	fd_set rfds;
-	struct timeval tv;
-
-	FD_ZERO(&rfds);
-	FD_SET(read_fd, &rfds);
-	
-	tv.tv_sec  = FD_TIMEOUT;
-	tv.tv_usec = 0;
-	
-	int totalByte = 0;
-	int retval = select(read_fd+1, &rfds, NULL, NULL, &tv);
-	if(retval > 0)
-	{
-		usleep(100*1000);            //微秒，等待0.1秒
-		if(FD_ISSET(read_fd, &rfds))
-		{
-			char szBuf[256] = {0};
-			ssize_t nReadByte;
-			do{
-				nReadByte = read(read_fd, szBuf, 256);
-				totalByte += nReadByte;
-				if(totalByte < nData)
-					strcat(szData, szBuf);
-				else{
-					totalByte -= nReadByte;
-					break;
-				}
-			}while(nReadByte == 256);
-		}
-	}
-    else
-    {
-		sprintf(szData, "%s", "The operation was timed out");
-    }
-
-	return totalByte;
-}
 
 void print_paese_error(int err)
 {
@@ -87,6 +40,88 @@ void print_paese_error(int err)
     }
 }
 
+/*
+#ifdef _SOAP
+int socket_for_key(table sock_table, int key)
+{
+    if(sock_table)
+    {
+        dbgprint("search socks table for key:%d ", key);
+        char* s = make_key_by_int(key);
+        elem em = (elem)table_search(sock_table, s);
+        if (em)
+        {
+            int *ptr = em->info;
+            if (ptr)
+            {
+                dbgprint("value:%d.\n\n", *ptr);
+                return *ptr;
+            }
+        }
+    }
+    
+    return 0;
+}
+
+int update_value_for_key(table sock_table, int key, int sock)
+{
+    if(sock_table)
+    {
+        dbgprint("update socks table for key:%d, with value:%d\n", key, sock);
+        char* s = make_key_by_int(key);
+        elem em = (elem)table_search(sock_table, s);
+        if (em)
+        {
+            int *ptr = em->info;
+            if (ptr)
+                return (*ptr = sock);
+        }
+    }
+    return -1;
+}
+
+void* init_soap_socket_table(pthread_t* pthreads, int thread_num)
+{
+    if (pthreads == NULL || thread_num <=0)
+        return 0;
+    
+    int sock_num = thread_num;
+    
+    table socket_table = table_new( sock_num );
+    if(!socket_table)
+    {
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create socket table failed\n");
+        return 0;
+    }
+    
+    int idx=0;
+    for (; idx<sock_num; idx++)
+    {
+        int sock = make_soap_socket();
+        if (sock > 0)
+        {
+            dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create soap socket success");
+            
+            // create a elem
+            elem e = malloc(sizeof(struct elem));
+            e->word = make_key_by_int(pthreads[idx]);
+            int *ptr = malloc(sizeof(int));
+            *ptr = sock;
+            e->info = (void*)ptr;
+            
+            table_insert(socket_table, e);
+        }
+        else
+        {
+            dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create soap socket failed");
+        }
+    }
+    return (void*)socket_table;
+}
+
+#endif
+*/
+
 int read_normal_sock(SOCKDATA *sockData, char *szBuf, size_t size)
 {
     int nbytes;
@@ -95,7 +130,7 @@ int read_normal_sock(SOCKDATA *sockData, char *szBuf, size_t size)
     nbytes = read(client_fd, szBuf, size);
     if(nbytes == -1)
     {
-        dbgprint("%s:%d:client fd=%d, read -1 and the error is %s\n", __FILE__, __LINE__, client_fd, strerror(errno));
+        dbgprint("%s:%d:client fd=%d, read -1 and the error message is %s\n", __FILE__, __LINE__, client_fd, strerror(errno));
         if (errno != EAGAIN)
         {
             //If errno == EAGAIN, that means we have read all data. So go back to the main loop
@@ -354,7 +389,7 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value, int *fs)
     *value = calloc(sizeof(char), bufSize + 1);
     strncpy(*value, szBuf, bufSize);
     
-    dbgprint("command:\'%s\' parse from json object.\n", *value);
+    dbgprint("Complete command:\'%s\' parse from json object.\n", *value);
     return needRsp;
 }
 
@@ -425,7 +460,7 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
 }
 
 
-void *read_sock(void *p)
+void *read_sock_func(void *p)
 {
     if(p == NULL)
         return NULL;
@@ -464,13 +499,13 @@ void *read_sock(void *p)
             {
                 if(is2Pipe[idx] == 1)
                 {
-                    dbgprint("write pipe message: %s\n", cmds[idx]);
-                    write_pipe(sockData, resp[idx], cmds[idx], strnlen(cmds[idx], nbytes));
+                    dbgprint("write pipe/sock message: %s\n", cmds[idx]);
+                    write2pipe(sockData, resp[idx], cmds[idx], strnlen(cmds[idx], nbytes));
                 }
                 else
                 {
                     dbgprint("write database message: %s\n", cmds[idx]);
-                    write_database(cmds[idx]);
+                    write2db(cmds[idx]);
                 }
             }
         }
@@ -489,40 +524,78 @@ void *read_sock(void *p)
 
 
 /**
- 写入管道
+ 写入管道或socket
  @param sockData SOCKDATA结构体
  @param resp 是否需要返回
  @param cmd 写入的命令
  @param size 命令长度
  */
-void write_pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
+void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
 {
     int nbytes;
+    int fd_read;                         //读取数据的fd,读管道或者sock
+    int fd_write;                        //写入数据的fd,读管道或者sock
     char szBuf[MAX_BUF_SIZE*4] = {0};
     
-    //命名管道的最大BUF是64kb,但是最大原子写是4KB, 加锁是为了保证如果需要读，当前读出的就是写入的返回
-    pthread_rwlock_wrlock(&rwlock);
-    
-    write(sockData->write_fd, cmd, size);
-    dbgprint("need response?%s\n", resp==0?"NO":"YES");
-    if(resp == 1)
+#ifdef _SOAP
+    /*
+    int sock_fd = socket_for_key((table)sockData->sock_table, (int)pthread_self()); //get socket
+    fd_write = sock_fd;
+    fd_read  = sock_fd;
+    */
+    int num=0;
+    int sock_fd;
+    while((sock_fd=make_soap_socket()) <= 0)
     {
-        dbgprint("Request need response\n");
-        nbytes = read_fd(sockData->read_fd, szBuf, sizeof(szBuf));
-        if(nbytes > 0)
+        if(num++ >= 3)
+            break;
+    }
+    fd_write = sock_fd;
+    fd_read  = sock_fd;
+    size = make_soap_request(cmd, size, szBuf);
+#else
+    /*
+     命名管道的最大BUF是64kb,但是最大原子写是4KB.
+     加锁是为了保证如果需要读，当前读出的就是写入的返回
+    */
+    pthread_rwlock_wrlock(&rwlock);
+    fd_write = sockData->write_fd;
+    fd_read  = sockData->read_fd;
+    memcpy(szBuf, cmd, size);
+#endif
+    if (fd_write > 0)
+    {
+        int ret = writen_fd(fd_write, szBuf, size);         //block sock
+
+        nbytes = readn_fd(fd_read, szBuf, sizeof(szBuf));
+        dbgprint("read data from pipe/soap sock=%d:\n%s\n", fd_read, szBuf);
+        dbgprint("need response?%s\n", resp==0?"NO":"YES");
+        if(resp == 1 && nbytes > 0)
         {
-            dbgprint("read data:%s and ready to send\n", szBuf);
+#ifdef _SOAP
+            char szrst[MAX_BUF_SIZE*4] = {0};
+            size_t rst_len = sizeof(szrst);
+            analysis_soap_response(szBuf, nbytes, szrst, &rst_len);
+            memcpy(szBuf, szrst, rst_len);
+            szBuf[rst_len] = '\0';
+            nbytes = rst_len;
+#endif
             sockData->msg = szBuf;
             sockData->size = nbytes;
-            write_sock(sockData);
+            write_sock_func(sockData);
+        }
+        if (fd_write==fd_read)
+        {
+            close(fd_read);     //close soap sock
         }
     }
-    
+#ifndef _SOAP
     pthread_rwlock_unlock(&rwlock);
+#endif
 }
 
 //static sqlite3 *db;
-void write_database(char cmds[])
+void write2db(char cmds[])
 {
     if(cmds==NULL || strlen(cmds)<=0)
         return;
@@ -541,7 +614,7 @@ void write_database(char cmds[])
         if( rc )
         {
             dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(db), db_path);
-            return -1;
+            return;
         }
         dbgprint("Opened database successfully\n");
     }
@@ -553,7 +626,7 @@ void write_database(char cmds[])
         dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
         sqlite3_free(zErrMsg);
         // close_db();
-        return -1;
+        return;
     }
     sqlite3_close(db);
     // close_db();
@@ -569,7 +642,7 @@ void write_database(char cmds[])
 //    }
 //}
 
-void *write_sock(void *p)
+void *write_sock_func(void *p)
 {
     if(p == NULL)
 	    return NULL;
@@ -588,6 +661,7 @@ void *write_sock(void *p)
         cJSON_Delete(root);
         return NULL;
     }
+    
     int len;
 	if((len=crc_data(json_str, size, buf))==-1)
 	{
@@ -599,12 +673,12 @@ void *write_sock(void *p)
 	//nbytes =send(sockData->sockConn->sock_fd, buf, len, 0);
 #ifndef SOCKSSL
     int client_fd = sockData->sockConn->sock_fd;
-    nbytes = write(client_fd, buf, len);
+    nbytes = writen_fd(client_fd, buf, len);
 #else
     SSL *_ssl = sockData->sockConn->ssl;
     nbytes = SSL_write(_ssl, buf, len);
 #endif
-    
     cJSON_Delete(root);
+    
 	return NULL;
 }

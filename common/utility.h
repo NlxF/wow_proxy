@@ -14,9 +14,11 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/resource.h>
-#include <sys/socket.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
+//#include <netinet/tcp.h>
+#include <linux/tcp.h>
 #include <signal.h>
 #include "config_.h"
 
@@ -48,7 +50,7 @@ int get_absolute_path(char *current_absolute_path);
 void set_process_max_fd(int max);
 
 /**
- 创建两条命名管道
+ 创建两条命名管道，一条用于写，一条用于读
  @param write_fd 返回写管道
  @param read_fd  返回读管道
  @return 是否创建成功
@@ -68,6 +70,32 @@ int create_server(int port);
 返回值：成功返回0,失败返回<0
 **/
 int set_non_blocking(int fd);
+
+
+/**
+ 尝试向描述符写入n个字节
+ @param: 要写入的描述符
+ @param: 内容缓存
+ @param: 写入的字节
+ @return: 成功返回写入的字节，失败返回-1
+ */
+ssize_t writen_fd( int fd, const void * vptr, size_t n);
+
+/**
+ 尝试从描述符读取x个字节
+ @param: 读取的描述符
+ @param: 缓冲区
+ @param: 缓冲区大小
+ @return: 成功返回读取的字节，失败返回-1
+ */
+ssize_t readn_fd(int fd_read, char *szData, size_t nData);
+
+
+/**
+说明：创建一个soap socket
+返回值: 成功返回socket fd，失败返回值<0
+ */
+int make_soap_socket();
 
 /**
 说明：创建epoll
@@ -91,11 +119,10 @@ void modify_epoll_fd(SOCKCONN *sockConn);
 /**
  创建SOCKDATA
  @param sock_fd  client socket
- @param read_fd  读管道fd
- @param write_fd 写管道fd
+ @param container  读、写管道fd或者socket table
  @return SOCKDATA指针
  */
-SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int read_fd, int write_fd);
+SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int container[2]/*int read_fd, int write_fd*/);
 
 /**
  释放创建的SOCKDATA

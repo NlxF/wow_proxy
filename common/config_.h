@@ -19,15 +19,17 @@
 #include <openssl/err.h>
 #endif
 
-
-#define THREEAD_MAX 4096
-#define LISTEN_MAX 500
-#define SERVER_IP "192.168.1.106"
-
+#ifdef _SOAP
+#define SOAPSERVERIP "127.0.0.1"
+#define SOAPSERVERPORT 7878
+#else
 #define LSERVER2WSERVER ".lserver2wserver"
 #define WSERVER2LSERVER ".wserver2lserver"
+#endif
 
 #define MAX_BUF_SIZE 1024
+#define LISTEN_MAX 500
+
 
 #define psyslog(level, format, ...) \
 syslog(level, format, ##__VA_ARGS__)
@@ -61,10 +63,13 @@ typedef struct
 
 typedef struct
 {
+#ifdef _SOAP
+    void* sock_table;         //sock hash table
+#else
     int  read_fd;             //pipe read fd
     int  write_fd;            //pipe write fd
+#endif
     SOCKCONN*  sockConn;      //connect info
-    
     int  size;                //message len
     char *msg;                //send message
 }SOCKDATA;
@@ -76,7 +81,7 @@ typedef struct
     int paramNum;
     bool needRsp;
     bool deprecated;
-    bool is2Pipe;
+    bool is2Pipe;             //this command is for db or worldserver
 } Command;
 
 

@@ -28,7 +28,7 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>        /* TCP_NODELAY, TCP_CORK */
+//#include <netinet/tcp.h>        /* TCP_NODELAY, TCP_CORK */
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/un.h>

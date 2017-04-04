@@ -26,13 +26,30 @@ typedef enum
   参数：IN:SOCKDATA结构指针，包含发送到wserver的命令, OUT:wserver返回的内容
   返回值：无
   **/
-void *read_sock(void *p);
+void *read_sock_func(void *p);
 
 /**
   说明：写sock
   参数：IN：SOCKDATA结构指针，包含发送到tserver的命令, OUT:tserver返回的内容
   返回值：无
   **/
-void *write_sock(void *p);
+void *write_sock_func(void *p);
+
+
+/**
+ 初始化用于与soap服务通信的socket table
+ @param pthreads 线程指针，用作table的key
+ @param thread_num 线程数量
+ @return table ptr
+ */
+//void* init_soap_socket_table(pthread_t* pthreads, int thread_num);
+
+/**
+ 查找hash table中key值对应的value
+ @param t 创建的socket table
+ @param key key值
+ @return sock值
+ */
+//int socket_for_key(table t, int key);
 
 #endif

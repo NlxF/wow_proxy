@@ -78,7 +78,6 @@ bool partition_response(char *rsp, size_t len, char *http_header, char *soap)
         return false;
     
     strncpy(http_header, rsp, pos-rsp);                   //http header
-    dbgprint("http header: %s\n", http_header);
 
     pos += strlen(septation);
     if(*pos=='<' && *(pos+1)=='?' && *(pos+2)=='x')      // remove "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -87,7 +86,6 @@ bool partition_response(char *rsp, size_t len, char *http_header, char *soap)
         pos += 2;
     }
     strncpy(soap, pos, len);                             //soap content
-    dbgprint("soap content: %s\n", soap);
 
     return true;
 }
@@ -112,10 +110,8 @@ size_t get_soap_content(char *soap, bool isOK, char *content)
         return -1;
 
     size_t content_len = 0;
-    char szBuf[MAX_BUF_SIZE]={0};
+    char szBuf[MAX_BUF_SIZE]={'\0'};
     strncpy(szBuf, soap, strlen(soap));
-    dbgprint("xml data: %s\n", szBuf);
-
 
     struct xml_document* document = xml_parse_document(soap, strlen(soap));
     if (!document) 
@@ -178,33 +174,86 @@ size_t get_soap_content(char *soap, bool isOK, char *content)
 }
 
 
-bool analysis_response(char *rsp, size_t len, char **rst)
+bool analysis_soap_response(char *rsp, size_t rsp_len, char rst[], size_t *rst_len)
 {
-    *rst = NULL;
-    if(rsp == NULL)
+    if(rsp == NULL || *rst_len <= 0)
         return 0;
     
-    char soap[MAX_BUF_SIZE]={0};
-    char http_header[MAX_BUF_SIZE]={0};
+    bzero(rst, *rst_len);
+    char soap[MAX_BUF_SIZE*3]={'\0'};
+    char http_header[MAX_BUF_SIZE]={'\0'};
 
-    if(!partition_response(rsp, len, http_header, soap))  //分离http头和soap content
+    if(!partition_response(rsp, rsp_len, http_header, soap))  //分离http头和soap content
         return 0;
     dbgprint("partition response...\n");
+    dbgprint("header:\n%s\n\ncontent:%s\n", http_header, soap);
 
     bool isOpOK;
     isOpOK = get_http_status(http_header, strlen(http_header));       //获取http头状态
-    dbgprint("get http header status=%s...\n", isOpOK?"OK":"Error");
+    dbgprint("http header status=%s...\n", isOpOK?"OK":"Error");
 
     size_t size;
-    char content[MAX_BUF_SIZE*3]={0};
+    char content[MAX_BUF_SIZE*4]={'\0'};
     size = get_soap_content(soap, isOpOK, content);     //获取soap content
-    if(size > 0)
+    dbgprint("soap content result:\n%s\n", content);
+    if(size > 0 && size <= *rst_len)
     {
-        *rst = calloc(size + 1, sizeof(char));
-        if(!*rst)
-            return false;
-        strncpy(*rst, content, size);
+        strncpy(rst, content, size);
+        *rst_len = size;
     }
     
     return isOpOK;
 }
+
+
+size_t make_soap_request(char *content, size_t len, char *soap_request)
+{
+    if (content==NULL || len<=0 || soap_request==NULL)
+        return 0;
+    
+    int requestLength, contentLength;
+    char request[MAX_BUF_SIZE*4] = {'\0'};
+    char soapEnvelope[MAX_BUF_SIZE] = {'\0'};
+    
+    char s0[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n";
+    char s1[] = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns1=\"urn:TC\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:SOAP-ENC=\"http://schemas.xmlsoap.org/soap/encoding/\" SOAP-ENV:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n";
+    char s2[] = "  <SOAP-ENV:Body>\r\n";
+    char s3[] = "    <ns1:executeCommand>\r\n";
+    char s4[] = "      <command xsi:type=\"xsd:string\">%s</command>\r\n";
+    char s5[] = "    </ns1:executeCommand>\r\n";
+    char s6[] = "  </SOAP-ENV:Body>\r\n";
+    char s7[] = "</SOAP-ENV:Envelope>\r\n";
+    
+    char s8[MAX_BUF_SIZE] = {'\0'};
+    sprintf(s8, s4, content);
+    
+    strcat(soapEnvelope, s0);
+    strcat(soapEnvelope, s1);
+    strcat(soapEnvelope, s2);
+    strcat(soapEnvelope, s3);
+    strcat(soapEnvelope, s8);
+    strcat(soapEnvelope, s5);
+    strcat(soapEnvelope, s6);
+    strcat(soapEnvelope, s7);
+    contentLength = strlen(soapEnvelope);
+    
+    sprintf(request, "POST / HTTP/1.1\r\n");
+    sprintf(request, "%sHost: 127.0.0.1:7878\r\n", request);
+    sprintf(request, "%sContent-Type: text/xml; charset=UTF-8\r\n", request);
+    sprintf(request, "%sContent-Length: %d\r\n", request, contentLength);
+    sprintf(request, "%sSOAPAction: \"urn:TC#executeCommand\"\r\n", request);
+    sprintf(request, "%sAuthorization: Basic YWRzOjEyMw==\"\r\n", request);
+    sprintf(request, "%s\r\n", request);
+    requestLength = strlen(request);
+    
+    sprintf(soap_request, "%s%s", request, soapEnvelope);
+    dbgprint("make soap request:\n%s\n", soap_request);
+    
+    return (contentLength+requestLength);
+}
+
+
+
+
+
+
