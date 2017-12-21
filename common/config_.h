@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <time.h>
+#include <syslog.h>
 
 #ifndef SOCKSSL
 #define SOCKSSL2
@@ -34,9 +36,9 @@
 #define psyslog(level, format, ...) \
 syslog(level, format, ##__VA_ARGS__)
 
-#define PRINT_BASE(format, ...)    ;printf(format, ##__VA_ARGS__)
+#define PRINT_BASE(format, ...)    printf(format, ##__VA_ARGS__)
 #define PRINT_0( format, ... ) \
-;do{ \
+do{ \
 time_t timep; \
 time( &timep ); \
 struct tm *pTM = gmtime( &timep ); \
@@ -44,7 +46,7 @@ PRINT_BASE( "[%4d-%02d-%02d %02d:%02d:%02d]" format, \
 pTM->tm_year+1900, pTM->tm_mon+1, pTM->tm_mday, pTM->tm_hour+8, pTM->tm_min, pTM->tm_sec, ##__VA_ARGS__ ) ; \
 }while (0)
 
-#define dbgprint(format, ...)  PRINT_BASE(format, ##__VA_ARGS__)
+#define dbgprint(format, ...)  PRINT_0(format, ##__VA_ARGS__)
 
 #ifdef SOCKSSL
 typedef  int (*VerifyCallback)(int, X509_STORE_CTX *);

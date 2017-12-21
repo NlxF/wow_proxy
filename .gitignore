@@ -40,3 +40,6 @@ test/ss/wowserver
 *.lua
 test/ss/client/soap-client
 proxy_server/sqlite/aidsql-test
+test/ss/client/makefile的副本
+proxy_server/proxy_server
+proxy_server/commands.db

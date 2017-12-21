@@ -84,7 +84,7 @@ int init_commands_table()
         dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(cmds_db), db_path);
         return -1;
     }
-    dbgprint("Opened database successfully\n");
+    //dbgprint("Opened database successfully\n");
     
     /* init hash table */
     int count = 0;

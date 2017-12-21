@@ -165,7 +165,14 @@ void loop_once(int ep_fd, int listen_fd, int container[2])
     struct epoll_event events[LISTEN_MAX];   //all events
     
     nfds = epoll_wait(ep_fd, events, LISTEN_MAX, -1);
-    
+    if(nfds == -1)
+    {
+        dbgprint("%s:%d:epoll_wait() error:%d(%s)\n",__FILE__, __LINE__, errno, strerror(errno));
+        if(errno == EINTR)
+            continue;                        // try again
+        else
+            break;
+    }
     //handle all events
     int sock_num;
     for(sock_num=0; sock_num<nfds; ++sock_num)
