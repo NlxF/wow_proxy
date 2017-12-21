@@ -2,8 +2,9 @@
 #include "../xml/analysis_soap.h"
 
 
-void write2db(char cmds[]);
+void write2db(sqlite3 **db, char cmds[]);
 void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size);
+void close_db(sqlite3 *db);
 
 pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;  //rwlock
 
@@ -468,6 +469,7 @@ void *read_sock_func(void *p)
     char szBuf[MAX_BUF_SIZE*4] = {0};
     SOCKDATA *sockData = (SOCKDATA*)p;
     
+    sqlite3 *db = NULL;
     while(1)
     {
         int nbytes;
@@ -505,7 +507,7 @@ void *read_sock_func(void *p)
                 else
                 {
                     dbgprint("write database message: %s\n", cmds[idx]);
-                    write2db(cmds[idx]);
+                    write2db(&db, cmds[idx]);
                 }
             }
         }
@@ -514,8 +516,11 @@ void *read_sock_func(void *p)
     }
     
     free_sockData(sockData);
+    if(db != NULL)
+    {
+        close_db(db);
+    }
     
-    // close_db();
     
     dbgprint("Read job Finish\n");
     
@@ -594,14 +599,14 @@ void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
 #endif
 }
 
-//static sqlite3 *db;
-void write2db(char cmds[])
+
+void write2db(sqlite3 **_db, char cmds[])
 {
     if(cmds==NULL || strlen(cmds)<=0)
         return;
     
     int rc;
-    sqlite3 *db;
+    sqlite3 *db = *_db;
     if (db == NULL)
     {
         char buf[MAX_BUF_SIZE]     = {0};
@@ -614,33 +619,47 @@ void write2db(char cmds[])
         if( rc )
         {
             dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(db), db_path);
+            close_db(db);
             return;
         }
-        dbgprint("Opened database successfully\n");
+        *_db = db;
+        dbgprint("Opened database:%p successfully\n", db);
     }
     
-    char *zErrMsg = NULL;
-    rc = sqlite3_exec(db, cmds, 0, 0, &zErrMsg);
-    if( rc != SQLITE_OK )
+    sqlite3_stmt *stmt;
+    sqlite3_prepare_v2(db, cmds, -1, &stmt, NULL);    // Prepare a query
+
+    rc = sqlite3_step(stmt);                          // Execute the statement                           
+    if (rc != SQLITE_DONE) 
     {
-        dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
-        sqlite3_free(zErrMsg);
-        // close_db();
+        dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "ERROR ", sqlite3_errmsg(db));
+        close_db(db);
         return;
     }
-    sqlite3_close(db);
-    // close_db();
+
+    sqlite3_finalize(stmt);                           // Free the ressources by finalizing the statement
+
+    // char *zErrMsg = NULL;
+    // rc = sqlite3_exec(db, cmds, 0, 0, &zErrMsg);
+    // if( rc != SQLITE_OK )
+    // {
+    //     dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
+    //     sqlite3_free(zErrMsg);
+    //     // close_db();
+    //     return;
+    // }
 }
 
-//void close_db()
-//{
-//    /*close db*/
-//    if (db != NULL)
-//    {
-//        sqlite3_close(db);
-//        db == NULL;
-//    }
-//}
+void close_db(sqlite3 *db)
+{
+   /*close db*/
+   if (db != NULL)
+   {
+       sqlite3_close(db);
+       dbgprint("close db:%p\n", db);
+       db == NULL;
+   }
+}
 
 void *write_sock_func(void *p)
 {
