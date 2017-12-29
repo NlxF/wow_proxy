@@ -13,7 +13,7 @@ pthread_mutex_t mutex; // = PTHREAD_MUTEX_INITIALIZER; /*USED TO SERIALIZE QUEUE
 int get_cpu_num()
 {
     int num = sysconf(_SC_NPROCESSORS_ONLN);
-    return num<1?1:num;
+    return num<1 ? 1 : num;
 }
 
 //init
@@ -43,6 +43,7 @@ threadpool_job_node * threadpool_job_queue_remove_first(threadpool *pthpool)
 
 void threadpool_thread_run(threadpool *pthpool)
 {
+	pthread_detach(pthread_self());      // set thread detached that can release all resource
 	while(threadpool_keepalive == 1)
 	{
 		if(sem_wait(pthpool->job_queue->queue_sem))

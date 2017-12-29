@@ -32,9 +32,9 @@ int main(int argc, char **argv)
     struct hostent *hp;            // used to get server's IP address
     struct sockaddr_in serverAddr; // server address structure
 
-    //char serverHostName[] = "127.0.0.1";
-    char serverHostName[] = "192.168.1.115";
-    char serverPortNumber[] = "7878";
+    char serverHostName[] = "127.0.0.1";
+    // char serverHostName[] = "192.168.1.115";
+    char serverPortNumber[] = "18080";
     int requestLength, contentLength, countOut, countIn;
     #define MAXLINE 1024
     char request[MAXLINE];
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 
     // Create a reliable, stream socket using TCP.
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-      unix_error("socket() error");
+        unix_error("socket() error");
 
 
     // Construct a server address structure.
@@ -51,13 +51,13 @@ int main(int argc, char **argv)
     memset(&serverAddr, 0, sizeof(serverAddr));    // zero out the address structure
     serverAddr.sin_family = AF_INET;               // Internet address family
     if ( (hp = gethostbyname( serverHostName )) == NULL ) // fill in server's IP address
-      dns_error("gethostbyname() error");
+        dns_error("gethostbyname() error");
     bcopy(hp->h_addr, (struct sockaddr*)&serverAddr.sin_addr, hp->h_length);
     serverAddr.sin_port = htons( atoi(serverPortNumber) );  // fill in the port number
 
     // Establish a connection with the server.
     if (connect(socket_fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
-      unix_error("connect() error");
+        unix_error("connect() error");
 
     // the strings that make up the XML SOAP envelope
     char s0[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n";
@@ -96,40 +96,53 @@ int main(int argc, char **argv)
     // prepare the request line and request headers
     request[0] = '\0';
     sprintf(request, "POST / HTTP/1.1\r\n");
-    sprintf(request, "%sHost: 127.0.0.1:7878\r\n", request);
+    sprintf(request, "%sHost: 127.0.0.1:18000\r\n", request);
     sprintf(request, "%sContent-Type: text/xml; charset=UTF-8\r\n", request);
     sprintf(request, "%sContent-Length: %d\r\n", request, contentLength);
-    sprintf(request, "%sSOAPAction: \"urn:TC#executeCommand\"\r\n", request);
-    sprintf(request, "%sAuthorization: Basic YWRzOjEyMw==\"\r\n", request);
+    sprintf(request, "%sSOAPAction: urn:TC#executeCommand\r\n", request);
+    sprintf(request, "%sAuthorization: Basic YWRzOjEyMw==\r\n", request);
+    sprintf(request, "%sConnection: Keep-Alive\r\n", request);
     sprintf(request, "%s\r\n", request);
     requestLength = strlen(request);
 
     int idx;
-    for (idx=0; idx<2; idx++){
-        
+    for (idx=0; idx<2; idx++)
+    {
         // send the two strings to both the server and standard out
         countOut = write(socket_fd, request, requestLength);
-        if (countOut != requestLength){
+        if (countOut != requestLength)
+        {
             unix_error("write() error");
         }
         countOut = write(socket_fd, soapEnvelope, contentLength);
-        if (countOut != contentLength){
+        if (countOut != contentLength)
+        {
             unix_error("write() error");
         }
         printf("%s%s\n\n", request, soapEnvelope);
         
         // read in the response from the server and echo it to standard out
-        while((countIn = read(socket_fd, buf, MAXLINE-1)) > 0){
+        printf("waiting response...\n\n");
+        while((countIn = read(socket_fd, buf, MAXLINE-1)) > 0)
+        {
             fputs(buf, stdout);
+            sleep(3);
         }
         
-        if (countIn <= 0){
+        if(countIn == 0)
+        {
+            printf("server close connect\n\n");
+        }
+        else if (countIn < 0)
+        {
             unix_error("read() error");
         }
+        
     }
 
     // Close the socket.
-    if (close(socket_fd) < 0){
+    if (close(socket_fd) < 0)
+    {
         unix_error("close() error");
     }
 
