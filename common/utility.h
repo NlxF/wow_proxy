@@ -74,12 +74,12 @@ int set_non_blocking(int fd);
 
 /**
  尝试向描述符写入n个字节
- @param: 要写入的描述符
+ @param: 要写入的描述符指针，指针是用来回传更新的sock
  @param: 内容缓存
  @param: 写入的字节
  @return: 成功返回写入的字节，失败返回-1
  */
-ssize_t writen_fd( int fd, const void * vptr, size_t n);
+ssize_t writen_fd(int *fd, const void * vptr, size_t n);
 
 /**
  尝试从描述符读取x个字节

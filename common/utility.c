@@ -2,7 +2,8 @@
 #include "sys/select.h"
 #include "unistd.h"
 
-#define FD_TIMEOUT  2
+#define FD_TIMEOUT  2               // 等待server返回数据的select超时时间
+extern __thread int _td_sock_id;   
 
 //-----------------------------------------------DAEMON-------------------------------------------//
 int create_daemon(int nochdir, int noclose)
@@ -404,11 +405,10 @@ ssize_t readn_fd(int fd_read, char *szData, size_t nData)
     bzero(szData, nData);
     
     fd_set rfds;
-    struct timeval tv;
-    
     FD_ZERO(&rfds);
     FD_SET(fd_read, &rfds);
-    
+
+    struct timeval tv;
     tv.tv_sec  = FD_TIMEOUT;
     tv.tv_usec = 0;
     
@@ -443,11 +443,12 @@ ssize_t readn_fd(int fd_read, char *szData, size_t nData)
 }
 
 
-ssize_t writen_fd(int fd, const void * vptr, size_t n)
+ssize_t writen_fd(int *pfd, const void * vptr, size_t n)
 {
     size_t         nleft;
     ssize_t        nwritten;
     const char     *ptr;
+    int            fd = *pfd;
     
     ptr = vptr;
     nleft = n;
@@ -460,6 +461,14 @@ ssize_t writen_fd(int fd, const void * vptr, size_t n)
                 dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "send data intterupt");
                 nwritten = 0;              /* and call write() again */
             }
+            else if(nwritten < 0 && errno == EPIPE)
+            {
+                dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "socket closed by the peer");
+                close(_td_sock_id);
+                _td_sock_id = 0;
+                fd = make_soap_socket();  //尝试重新连接server
+                nwritten = 0;             //再次发送
+            }
             else
             {
                 dbgprint("%s:%d:write data error:%d, errno:%d\n", __FILE__, __LINE__, nwritten, errno);
@@ -471,11 +480,16 @@ ssize_t writen_fd(int fd, const void * vptr, size_t n)
         ptr += nwritten;
         dbgprint("already write fd:%d, %d bytes, left %d, errno=%d, message:%s\n", fd, nwritten, nleft, errno, strerror(errno));
     }
+    *pfd = fd;          //尝试返回更新后的sock
+
     return (n) ;
 }
 
 int make_soap_socket()
 {
+    if(_td_sock_id > 0)
+        return _td_sock_id;              // 直接返回已经存在的sock
+
     int socket_fd;
     struct sockaddr_in serverAddr;
     
@@ -487,21 +501,26 @@ int make_soap_socket()
     }
     
     // set sock keepalive
-    //if(set_sock_keepalive(socket_fd) < 0)
-    //{
-    //    dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "set sock keepalive error...");
-    //    return 0;
-    //}
+    if(set_sock_keepalive(socket_fd) < 0)
+    {
+       dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "set sock keepalive error...");
+       return 0;
+    }
     
     bzero(&serverAddr, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = inet_addr( SOAPSERVERIP );
     serverAddr.sin_port = htons( SOAPSERVERPORT );
-    // Establish a connection with the server.
-    if (connect(socket_fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
+
+    // try to establish a connection with the server.
+    int num = 0;
+    while(connect(socket_fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
     {
-        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "try to make connect error...");
-        return 0;
+        dbgprint("%s:%d:%d:%s\n", __FILE__, __LINE__, num+1, "try to make connect to soap server error...");
+        if(++num >= 3)
+            return 0;
+
+        usleep(100*1000);            //微秒，等待0.1秒
     }
     
     return socket_fd;

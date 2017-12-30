@@ -1,12 +1,12 @@
 #include "aidsock.h"
 #include "../xml/analysis_soap.h"
 
-
 void write2db(sqlite3 **db, char cmds[]);
 void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size);
 void close_db(sqlite3 *db);
 
-pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;  //rwlock
+__thread int _td_sock_id = 0;                          // 线程本地存储的与server soap通信的sock
+pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;  // rwlock use for pipe read
 
 
 void print_paese_error(int err)
@@ -40,88 +40,6 @@ void print_paese_error(int err)
         dbgprint("未知错误\n");
     }
 }
-
-/*
-#ifdef _SOAP
-int socket_for_key(table sock_table, int key)
-{
-    if(sock_table)
-    {
-        dbgprint("search socks table for key:%d ", key);
-        char* s = make_key_by_int(key);
-        elem em = (elem)table_search(sock_table, s);
-        if (em)
-        {
-            int *ptr = em->info;
-            if (ptr)
-            {
-                dbgprint("value:%d.\n\n", *ptr);
-                return *ptr;
-            }
-        }
-    }
-    
-    return 0;
-}
-
-int update_value_for_key(table sock_table, int key, int sock)
-{
-    if(sock_table)
-    {
-        dbgprint("update socks table for key:%d, with value:%d\n", key, sock);
-        char* s = make_key_by_int(key);
-        elem em = (elem)table_search(sock_table, s);
-        if (em)
-        {
-            int *ptr = em->info;
-            if (ptr)
-                return (*ptr = sock);
-        }
-    }
-    return -1;
-}
-
-void* init_soap_socket_table(pthread_t* pthreads, int thread_num)
-{
-    if (pthreads == NULL || thread_num <=0)
-        return 0;
-    
-    int sock_num = thread_num;
-    
-    table socket_table = table_new( sock_num );
-    if(!socket_table)
-    {
-        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create socket table failed\n");
-        return 0;
-    }
-    
-    int idx=0;
-    for (; idx<sock_num; idx++)
-    {
-        int sock = make_soap_socket();
-        if (sock > 0)
-        {
-            dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create soap socket success");
-            
-            // create a elem
-            elem e = malloc(sizeof(struct elem));
-            e->word = make_key_by_int(pthreads[idx]);
-            int *ptr = malloc(sizeof(int));
-            *ptr = sock;
-            e->info = (void*)ptr;
-            
-            table_insert(socket_table, e);
-        }
-        else
-        {
-            dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create soap socket failed");
-        }
-    }
-    return (void*)socket_table;
-}
-
-#endif
-*/
 
 int read_normal_sock(SOCKDATA *sockData, char *szBuf, size_t size)
 {
@@ -460,7 +378,7 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
     return keySize;
 }
 
-
+// 在线程池中随机的一条线程中运行
 void *read_sock_func(void *p)
 {
     if(p == NULL)
@@ -502,12 +420,12 @@ void *read_sock_func(void *p)
                 if(is2Pipe[idx] == 1)
                 {
                     dbgprint("write pipe/sock message: %s\n", cmds[idx]);
-                    write2pipe(sockData, resp[idx], cmds[idx], strnlen(cmds[idx], nbytes));
+                    write2pipe(sockData, resp[idx], cmds[idx], strnlen(cmds[idx], nbytes)); // need return
                 }
                 else
                 {
                     dbgprint("write database message: %s\n", cmds[idx]);
-                    write2db(&db, cmds[idx]);
+                    write2db(&db, cmds[idx]);   // need return
                 }
             }
         }
@@ -543,17 +461,10 @@ void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
     char szBuf[MAX_BUF_SIZE*4] = {0};
     
 #ifdef _SOAP
-    /*
-    int sock_fd = socket_for_key((table)sockData->sock_table, (int)pthread_self()); //get socket
-    fd_write = sock_fd;
-    fd_read  = sock_fd;
-    */
-    int num=0;
     int sock_fd;
-    while((sock_fd=make_soap_socket()) <= 0)
+    if((sock_fd=make_soap_socket()) <= 0)   
     {
-        if(num++ >= 3)
-            break;
+        return;
     }
     fd_write = sock_fd;
     fd_read  = sock_fd;
@@ -570,9 +481,13 @@ void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
 #endif
     if (fd_write > 0)
     {
-        int ret = writen_fd(fd_write, szBuf, size);         //block sock
-
-        nbytes = readn_fd(fd_read, szBuf, sizeof(szBuf));
+        /*
+        * 等待发送完所有的data, 若sock在对端已关闭，则创建新的
+        */
+        int ret = writen_fd(&fd_write, szBuf, size);        
+         
+        fd_read = fd_write;                                 // 尝试更新
+        nbytes = readn_fd(fd_read, szBuf, sizeof(szBuf));   // 尝试接收返回值
         dbgprint("read data from pipe/soap sock=%d:\n%s\n", fd_read, szBuf);
         dbgprint("need response?%s\n", resp==0?"NO":"YES");
         if(resp == 1 && nbytes > 0)
@@ -589,9 +504,10 @@ void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
             sockData->size = nbytes;
             write_sock_func(sockData);
         }
-        if (fd_write==fd_read)
+        if (fd_write == fd_read)
         {
-            close(fd_read);     //close soap sock
+            // close(fd_read);       //close soap sock
+            _td_sock_id = fd_read;   //不关闭, 重用sock
         }
     }
 #ifndef _SOAP
@@ -657,10 +573,16 @@ void close_db(sqlite3 *db)
    {
        sqlite3_close(db);
        dbgprint("close db:%p\n", db);
-       db == NULL;
+       db = NULL;
    }
 }
 
+/* 
+函数有两个进入点
+一是从epoll循环的handle_write里进入,
+二是从epoll循环的handle_read->read_sock_func->write2pipe进入
+两种情况下会是在线程池中随机的一条线程中运行
+*/
 void *write_sock_func(void *p)
 {
     if(p == NULL)
@@ -692,7 +614,7 @@ void *write_sock_func(void *p)
 	//nbytes =send(sockData->sockConn->sock_fd, buf, len, 0);
 #ifndef SOCKSSL
     int client_fd = sockData->sockConn->sock_fd;
-    nbytes = writen_fd(client_fd, buf, len);
+    nbytes = writen_fd(&client_fd, buf, len);
 #else
     SSL *_ssl = sockData->sockConn->ssl;
     nbytes = SSL_write(_ssl, buf, len);

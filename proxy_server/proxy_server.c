@@ -333,6 +333,9 @@ int main(int argc, char*argv[])
     
     close(listen_fd);
     
+    //销毁线程池
+    threadpool_destroy();
+
 #ifdef SOCKSSL
     SSL_CTX_free(g_sslCtx);
     BIO_free(errBio);

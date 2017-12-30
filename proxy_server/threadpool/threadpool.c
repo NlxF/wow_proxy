@@ -79,6 +79,11 @@ void threadpool_thread_run(threadpool *pthpool)
 		else
 		  return;
 	}
+
+	//当线程结束时关闭sock
+	if(_td_sock_id > 0)
+		close(_td_sock_id)
+		
 	return;
 }
 
