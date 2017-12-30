@@ -1,3 +1,3 @@
-# OpenWow
+# wow_proxy
 
 let's start...
