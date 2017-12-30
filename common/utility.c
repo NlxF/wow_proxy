@@ -117,7 +117,7 @@ void set_process_max_fd(int max)
 	{
 		if(setrlimit(RLIMIT_NOFILE, &rt) != 0)
 		{
-			syslog(LOG_WARNING, "SET NOFILE INFINITY FAILED: %m, NOW IS %d\n", old_rt.rlim_max);
+			syslog(LOG_WARNING, "SET NOFILE INFINITY FAILED: %m, NOW IS %ld\n", old_rt.rlim_max);
 			rt.rlim_cur = rt.rlim_max = old_rt.rlim_max;
 			setrlimit(RLIMIT_NOFILE, &rt);
 		}
@@ -471,14 +471,14 @@ ssize_t writen_fd(int *pfd, const void * vptr, size_t n)
             }
             else
             {
-                dbgprint("%s:%d:write data error:%d, errno:%d\n", __FILE__, __LINE__, nwritten, errno);
+                dbgprint("%s:%d:write data error:%ld, errno:%d\n", __FILE__, __LINE__, nwritten, errno);
                 return (- 1);              /* error */
             }
         }
         
         nleft -= nwritten;
         ptr += nwritten;
-        dbgprint("already write fd:%d, %d bytes, left %d, errno=%d, message:%s\n", fd, nwritten, nleft, errno, strerror(errno));
+        dbgprint("already write fd:%d, %ld bytes, left %ld, errno=%d, message:%s\n", fd, nwritten, nleft, errno, strerror(errno));
     }
     *pfd = fd;          //尝试返回更新后的sock
 
