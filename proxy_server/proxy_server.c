@@ -158,6 +158,8 @@ void handle_handshake(SOCKCONN *sockConn) {
 }
 #endif
 
+static int pre_error = 0;   
+static int error_num = 0;
 void loop_once(int ep_fd, int listen_fd, int container[2])
 {
     int    nfds;                             //ready I/O fd
@@ -167,11 +169,23 @@ void loop_once(int ep_fd, int listen_fd, int container[2])
     nfds = epoll_wait(ep_fd, events, LISTEN_MAX, -1);
     if(nfds == -1)
     {
-        dbgprint("%s:%d:epoll_wait() error:%d(%s)\n",__FILE__, __LINE__, errno, strerror(errno));
+        dbgprint("%s:%d:epoll_wait error:%d(%s)\n",__FILE__, __LINE__, errno, strerror(errno));
         if(errno == EINTR)
-            continue;                        // try again
+            return;                        // return and try again
         else
-            break;
+        {
+            if(pre_error==errno)
+                error_num++;
+            else
+                error_num = 0;
+            if(error_num == ERRNUMTOEXIT)    // 若连续N次都是相同的错误
+            {
+                dbgprint("%s:%d:epoll_wait occur the error:%d(%s), %d times, something is wrong to exit!\n",__FILE__, __LINE__, errno, strerror(errno), ERRNUMTOEXIT);
+                g_stop = true;
+                return;
+            }
+            pre_error = errno;
+        }
     }
     //handle all events
     int sock_num;
@@ -334,7 +348,7 @@ int main(int argc, char*argv[])
     close(listen_fd);
     
     //销毁线程池
-    threadpool_destroy();
+    threadpool_destroy(pthpool);
 
 #ifdef SOCKSSL
     SSL_CTX_free(g_sslCtx);

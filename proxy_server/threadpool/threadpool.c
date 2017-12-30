@@ -5,7 +5,7 @@
 
 
 static int threadpool_keepalive = 1;
-
+extern __thread int _td_sock_id;
 
 pthread_mutex_t mutex; // = PTHREAD_MUTEX_INITIALIZER; /*USED TO SERIALIZE QUEUE ACCESS*/
 
@@ -43,7 +43,7 @@ threadpool_job_node * threadpool_job_queue_remove_first(threadpool *pthpool)
 
 void threadpool_thread_run(threadpool *pthpool)
 {
-	pthread_detach(pthread_self());      // set thread detached that can release all resource
+	// pthread_detach(pthread_self());      // set thread detached that can release all resource
 	while(threadpool_keepalive == 1)
 	{
 		if(sem_wait(pthpool->job_queue->queue_sem))
@@ -76,13 +76,12 @@ void threadpool_thread_run(threadpool *pthpool)
 				//dbgprint("client %d finish!\n", ((SOCKDATA*)argv)->sock_fd);
 			}
 		}
-		else
-		  return;
 	}
+	fprintf(stderr, "child thread:%d terminal\n", pthread_self());
 
 	//当线程结束时关闭sock
 	if(_td_sock_id > 0)
-		close(_td_sock_id)
+		close(_td_sock_id);
 		
 	return;
 }
@@ -244,4 +243,6 @@ void threadpool_destroy(threadpool *pthpool)
 	free(pthpool->job_queue->queue_sem);
 	free(pthpool->job_queue);
 	free(pthpool);
+
+	fprintf(stderr, "destroy threadpool\n");
 }

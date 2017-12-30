@@ -32,6 +32,7 @@
 #define MAX_BUF_SIZE 1024
 #define LISTEN_MAX 500
 
+#define ERRNUMTOEXIT  5
 
 #define psyslog(level, format, ...) \
 syslog(level, format, ##__VA_ARGS__)
