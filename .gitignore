@@ -44,3 +44,5 @@ test/ss/client/makefile的副本
 proxy_server/proxy_server
 commands.db
 proxy_server
+objs/
+gsserver

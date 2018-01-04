@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions name="sum"
+  targetNamespace="http://localhost/sum.wsdl"
+  xmlns:tns="http://localhost/sum.wsdl"
+  xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:ns="urn:sum"
+  xmlns:SOAP="http://schemas.xmlsoap.org/wsdl/soap/"
+  xmlns:HTTP="http://schemas.xmlsoap.org/wsdl/http/"
+  xmlns:MIME="http://schemas.xmlsoap.org/wsdl/mime/"
+  xmlns:DIME="http://schemas.xmlsoap.org/ws/2002/04/dime/wsdl/"
+  xmlns:WSDL="http://schemas.xmlsoap.org/wsdl/"
+  xmlns="http://schemas.xmlsoap.org/wsdl/">
+
+<types>
+
+  <schema targetNamespace="urn:sum"
+    xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+    xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:ns="urn:sum"
+    xmlns="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="unqualified"
+    attributeFormDefault="unqualified">
+    <import namespace="http://schemas.xmlsoap.org/soap/encoding/"/>
+  </schema>
+
+</types>
+
+<message name="sumRequest">
+  <part name="a" type="xsd:int"/><!-- ns__sum::a -->
+  <part name="b" type="xsd:int"/><!-- ns__sum::b -->
+</message>
+
+<message name="sumResponse">
+  <part name="res" type="xsd:int"/><!-- ns__sum::res -->
+</message>
+
+<portType name="sumPortType">
+  <operation name="sum">
+    <documentation>Service definition of function ns__sum</documentation>
+    <input message="tns:sumRequest"/>
+    <output message="tns:sumResponse"/>
+  </operation>
+</portType>
+
+<binding name="sum" type="tns:sumPortType">
+  <SOAP:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+  <operation name="sum">
+    <SOAP:operation style="rpc" soapAction=""/>
+    <input>
+          <SOAP:body use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:sum"/>
+    </input>
+    <output>
+          <SOAP:body use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:sum"/>
+    </output>
+  </operation>
+</binding>
+
+<service name="sum">
+  <documentation>gSOAP 2.8.55 generated service definition</documentation>
+  <port name="sum" binding="tns:sum">
+    <SOAP:address location="http://localhost/sum.cgi"/>
+  </port>
+</service>
+
+</definitions>

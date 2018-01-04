@@ -9,7 +9,7 @@ import multiprocessing
 import random
 from contextlib import closing
 
-HOST = '192.168.1.114'
+HOST = '127.0.0.1'
 PORT = 8083
 MESSAGE = "Hello world!"
 
@@ -61,7 +61,7 @@ def test_performance(account):
 if __name__ == "__main__":
 	pool_size = multiprocessing.cpu_count() * 2
 	pool = multiprocessing.Pool(processes=pool_size)
-	for i in xrange(100):
+	for i in xrange(1):
 		name = '{0}{1}'.format('usernameee', i)
 		pool.apply_async(test_performance, (name, ))
 	pool.close()
