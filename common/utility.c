@@ -516,11 +516,14 @@ int make_soap_socket()
     int num = 0;
     while(connect(socket_fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
     {
-        dbgprint("%s:%d:%d:%s\n", __FILE__, __LINE__, num+1, "try to make connect to soap server error...");
+        dbgprint("%s:%d:%d:%s\n", __FILE__, __LINE__, num+1, "try to make connect to soap server, error...");
         if(++num >= 3)
+        {
+            dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "try many timers to connect to soap server, failed!");
             return 0;
+        }    
 
-        usleep(100*1000);            //微秒，等待0.1秒
+        // usleep(100*1000);            //微秒，等待0.1秒
     }
     
     return socket_fd;

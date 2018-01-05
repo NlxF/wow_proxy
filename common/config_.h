@@ -25,7 +25,7 @@
 // #define SOAPSERVERIP "127.0.0.1"
 // #define SOAPSERVERPORT 7878
 #define SOAPSERVERIP "127.0.0.1"
-#define SOAPSERVERPORT 18000
+#define SOAPSERVERPORT 18080
 #else
 #define LSERVER2WSERVER ".lserver2wserver"
 #define WSERVER2LSERVER ".wserver2lserver"

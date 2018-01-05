@@ -49,11 +49,15 @@ int read_normal_sock(SOCKDATA *sockData, char *szBuf, size_t size)
     nbytes = read(client_fd, szBuf, size);
     if(nbytes == -1)
     {
-        dbgprint("%s:%d:client fd=%d, read -1 and the error message is %s\n", __FILE__, __LINE__, client_fd, strerror(errno));
         if (errno != EAGAIN)
         {
-            //If errno == EAGAIN, that means we have read all data. So go back to the main loop
+            dbgprint("%s:%d:client fd=%d, Some unexpected error occurred, the error(%d) message is %s\n", __FILE__, __LINE__, client_fd, errno, strerror(errno));
             close (client_fd);
+        }
+        else
+        {
+            //If errno == EAGAIN, that means we have read all data. So go back to the main loop
+            dbgprint("%s:%d:errno == EAGAIN, that means we have read all data. So go back to the main loop\n", __FILE__, __LINE__);
         }
         return -1;// break;
     }
@@ -438,8 +442,7 @@ void *read_sock_func(void *p)
     {
         close_db(db);
     }
-    
-    
+
     dbgprint("Read job Finish\n");
     
 	return NULL;
@@ -464,6 +467,7 @@ void write2pipe(SOCKDATA *sockData, int resp, char cmd[], size_t size)
     int sock_fd;
     if((sock_fd=make_soap_socket()) <= 0)   
     {
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "make soap socket failed!!!");
         return;
     }
     fd_write = sock_fd;
