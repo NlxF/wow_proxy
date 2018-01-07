@@ -17,6 +17,7 @@ int main(int argc, char* argv[])
 	struct soap sum_soap;
 	// soap_init(&sum_soap);
 	soap_init2(&sum_soap, SOAP_IO_KEEPALIVE, SOAP_IO_KEEPALIVE); 
+	sum_soap.recv_timeout = 10;
 	
 	int sock_port = 18080;//listen port, sample!!!
 

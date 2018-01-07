@@ -488,7 +488,10 @@ ssize_t writen_fd(int *pfd, const void * vptr, size_t n)
 int make_soap_socket()
 {
     if(_td_sock_id > 0)
+    {
+        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "soap socket already exist");
         return _td_sock_id;              // 直接返回已经存在的sock
+    }
 
     int socket_fd;
     struct sockaddr_in serverAddr;
@@ -525,7 +528,7 @@ int make_soap_socket()
 
         // usleep(100*1000);            //微秒，等待0.1秒
     }
-    
+    dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "make new soap socket");
     return socket_fd;
 }
 
