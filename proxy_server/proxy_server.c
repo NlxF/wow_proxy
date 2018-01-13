@@ -100,8 +100,8 @@ void handle_read(SOCKCONN *sockConn, int container[2])
     SOCKDATA *sockData = malloc_sockData(sockConn, container);
     if(sockData != NULL)
     {
-        threadpool_add_work(pthpool, (void*)read_sock_func, (void*)sockData);
         dbgprint("new read job, job number=%d, with fd=%d\n", ++jobs, sockConn->sock_fd);
+        threadpool_add_work(pthpool, (void*)read_sock_func, (void*)sockData);
     }
 }
 
@@ -113,8 +113,8 @@ void handle_write(SOCKCONN *sockConn)
     SOCKDATA *sockData = malloc_sockData(sockConn, container);
     if(sockData != NULL)
     {
-        threadpool_add_work(pthpool, (void*)write_sock_func, (void*)sockData);
         dbgprint("new write job, with fd=%d send data out", sockConn->sock_fd);
+        threadpool_add_work(pthpool, (void*)write_sock_func, (void*)sockData);
     }
 }
 

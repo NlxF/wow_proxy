@@ -3,8 +3,6 @@
 
 #include "sqlite3.h"
 #include "../../common/config_.h"
-#include "../../common/hashtable/hashtable.h"
-
 
 /**
  初始化命令表

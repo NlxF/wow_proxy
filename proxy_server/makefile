@@ -6,7 +6,7 @@ gcc -g -Wall -c ../common/utility.c -o ./obj/utility.o -I../common
 
 gcc -g -Wall -c ../common/cJSON.c -o ./obj/cJSON.o -I../common
 
-gcc -g -Wall -c ../common/hashtable/hashtable.c -o ./obj/hashtable.o -I../common
+# gcc -g -Wall -c ../common/hashtable/hashtable.c -o ./obj/hashtable.o -I../common
 
 gcc -g -Wall -c ./threadpool/aidsock.c -o ./obj/aidsock.o -I./threadpool
 
@@ -16,13 +16,15 @@ gcc -g -Wall -c ./ssl/aidssl.c -o ./obj/aidssl.o -I/usr/include
 
 gcc -g -Wall -c ./sqlite/sqlite3.c -o ./obj/sqlite3.o -I./sqlite
 
-gcc -g -Wall -c ./sqlite/aid_sql.c -o ./obj/aid_sql.o -I../common -I../common/hashtable
+# gcc -g -Wall -c ./sqlite/aid_sql.c -o ./obj/aid_sql.o -I../common -I../common/hashtable
+gcc -g -Wall -c ./sqlite/aid_sql.c -o ./obj/aid_sql.o -I../common
 
 gcc -g -Wall -c ./xml/xml.c -o ./obj/xml.o
 
 gcc -g -Wall -c ./xml/analysis_soap.c -o ./obj/analysis_soap.o
 
-gcc -g -o proxy_server proxy_server.c ./obj/crc8.o ./obj/utility.o ./obj/cJSON.o ./obj/aidsock.o ./obj/aidssl.o ./obj/threadpool.o ./obj/hashtable.o ./obj/sqlite3.o ./obj/aid_sql.o ./obj/xml.o ./obj/analysis_soap.o -I../common -I../common/hashtable -I./thraedpool -lpthread -lm -lssl -lcrypto -ldl
+# gcc -g -o proxy_server proxy_server.c ./obj/crc8.o ./obj/utility.o ./obj/cJSON.o ./obj/aidsock.o ./obj/aidssl.o ./obj/threadpool.o ./obj/hashtable.o ./obj/sqlite3.o ./obj/aid_sql.o ./obj/xml.o ./obj/analysis_soap.o -I../common -I../common/hashtable -I./thraedpool -lpthread -lm -lssl -lcrypto -ldl
+gcc -g -o proxy_server proxy_server.c ./obj/crc8.o ./obj/utility.o ./obj/cJSON.o ./obj/aidsock.o ./obj/aidssl.o ./obj/threadpool.o ./obj/sqlite3.o ./obj/aid_sql.o ./obj/xml.o ./obj/analysis_soap.o -I../common -I../common/uthash -I./thraedpool -lpthread -lm -lssl -lcrypto -ldl
 
 rm ./obj/*
 

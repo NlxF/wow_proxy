@@ -425,7 +425,9 @@ ssize_t readn_fd(int fd_read, char *szData, size_t nData)
                 nReadByte = read(fd_read, szBuf, MAX_BUF_SIZE);
                 totalByte += nReadByte;
                 if(totalByte < nData)
+                {
                     strcat(szData, szBuf);
+                }
                 else
                 {
                     totalByte -= nReadByte;
@@ -528,7 +530,7 @@ int make_soap_socket()
 
         // usleep(100*1000);            //微秒，等待0.1秒
     }
-    dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "make new soap socket");
+    dbgprint("%s:%d:%s:%d\n", __FILE__, __LINE__, "make new soap socket", socket_fd);
     return socket_fd;
 }
 

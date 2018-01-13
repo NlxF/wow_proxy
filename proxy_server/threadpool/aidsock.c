@@ -64,7 +64,7 @@ int read_normal_sock(SOCKDATA *sockData, char *szBuf, size_t size)
     else if (nbytes == 0)
     {
         //End of file. The remote has closed the connection.
-        dbgprint("%s:%d:End of socket fd=%d. The remote has closed the connection.\n", __FILE__, __LINE__, client_fd);
+        dbgprint("End of socket fd=%d. The remote has closed the connection.\n", client_fd);
         close (client_fd);
         return -1;// break;
     }
@@ -224,9 +224,9 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value, int *fs)
         return PARAMNULL;                        //参数为空
     
     dbgprint("parse one json object.\n");
-    char *cmdStr;
-    int needRsp = 0;
-    int paramNum = 1;
+    char *cmdStr   = NULL;
+    int needRsp    = 0;
+    int paramNum   = 1;
     int deprecated = 1;
     
     *fs = 0;
@@ -254,7 +254,7 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value, int *fs)
         *fs = cmdObj->is2Pipe;
     }
     else
-        return COMMANDNOEXIST;   //当前命令不存在
+        return COMMANDNOEXIST;       //当前命令不存在
     
     if(parmSize-1 != paramNum)
         return PARAMNUMERR;          //命令需要的参数个数不符
@@ -349,6 +349,7 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
     int keySize = cJSON_GetArraySize(keysArray);
     if (keySize<=0 || cmdSize<=0)
     {
+        dbgprint("values or keys size is 0\n");
         cJSON_Delete(root);
         return 0;
     }
@@ -371,6 +372,8 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
         if (rs[i] < 0)
         {
             print_paese_error(rs[i]);                         //解析是否出错
+            cJSON_Delete(root);                               //有一个错误整串命令都放弃
+            return 0;
         }
     }
     *resp = rs;

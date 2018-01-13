@@ -3,29 +3,27 @@
 #include "aid_sql.h"
 
 
-table command_table;    //hash table
-
+// table command_table;    
+Table *command_table;   //hash table
 
 static int callback_record(void *data, int argc, char **argv, char **azColName)
-{
-    
+{ 
     /* create a elem */
-    elem e = malloc(sizeof(struct elem));
-    
-    Command *cmd = malloc(sizeof(Command));
-    memset(cmd, 0, sizeof(Command));
-    
-    int i;
+    Table *elem = malloc(sizeof(Table));
+    memset(elem, 0, sizeof(Table));
+    Command *cmd = &(elem->cmd);
+
 //    dbgprint("\n");
 //    dbgprint("Parse one row:\n");
+    int i;
     for(i=0; i<argc; i++)
     {
-//        dbgprint("  %10s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+    //    dbgprint("  %10s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
         
         if (strncmp(azColName[i], "key", 3)==0)
         {
             if (argv[i])
-                e->word = make_key_by_int(atoi(argv[i]));
+                elem->command_id = atoi(argv[i]);
         }
         else if (strncmp(azColName[i], "command", 7)==0)
         {
@@ -53,8 +51,8 @@ static int callback_record(void *data, int argc, char **argv, char **azColName)
                 cmd->is2Pipe = atoi(argv[i]);
         }
     }
-    e->info = (void*)cmd;
-    table_insert(command_table, e);
+    
+    HASH_ADD_INT(command_table, command_id, elem); 
     
     return 0;
 }
@@ -69,15 +67,14 @@ static int callback_count(void *count, int argc, char **argv, char **azColName)
 int init_commands_table()
 {
     
-    char buf[MAX_BUF_SIZE]     = {0};
-    char db_path[MAX_BUF_SIZE] = {0};
+    char szBuf[MAX_BUF_SIZE]     = {0};
+    char db_path[MAX_BUF_SIZE]   = {0};
     
     /* db */
-    getcwd(buf, sizeof(buf));
-    snprintf(db_path, sizeof(db_path), "%s/%s", buf, "commands.db");
+    getcwd(szBuf, sizeof(szBuf));
+    snprintf(db_path, sizeof(db_path), "%s/%s", szBuf, "commands.db");
     
-    
-    sqlite3 *cmds_db;
+    sqlite3 *cmds_db = NULL;
     int rc = sqlite3_open(db_path, &cmds_db);
     if( rc )
     {
@@ -86,27 +83,21 @@ int init_commands_table()
     }
     //dbgprint("Opened database successfully\n");
     
-    /* init hash table */
-    int count = 0;
-    char *zErrMsg = 0;
-    rc = sqlite3_exec(cmds_db, "select count(*) from commands", callback_count, &count, &zErrMsg);
-    if( rc != SQLITE_OK )
-    {
-        dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
-        sqlite3_free(zErrMsg);
-        sqlite3_close(cmds_db);
-        return -1;
-    }
-    
-    command_table = table_new( count/3 );   //fix size
-    if(!command_table)
-    {
-        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "create hash table failed\n");
-        sqlite3_close(cmds_db);
-        return -1;
-    }
+    /* Get row count */
+    // int count = 0;
+    // char *zErrMsg = 0;
+    // rc = sqlite3_exec(cmds_db, "select count(*) from commands", callback_count, &count, &zErrMsg);
+    // if( rc != SQLITE_OK )
+    // {
+    //     dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
+    //     sqlite3_free(zErrMsg);
+    //     sqlite3_close(cmds_db);
+    //     return -1;
+    // }
+
     
     /* Create SQL statement */
+    char *zErrMsg = 0;
     char *sql = "SELECT * from commands";
     rc = sqlite3_exec(cmds_db, sql, callback_record, NULL/*(void*)data*/, &zErrMsg);
     if( rc != SQLITE_OK )
@@ -128,11 +119,12 @@ Command *value_for_key(int key)
     if(command_table)
     {
         dbgprint("search value for key:%d.\n", key);
-        char* s = make_key_by_int(key);
-        elem em = (elem)table_search(command_table, s);
-        if (em)
+        Table *elem;
+        HASH_FIND_INT(command_table, &key, elem);
+        if(elem)
         {
-            return (Command*)em->info;
+            // dbgprint("Find command:[value:%s, paramNum:%d, needRsp:%d, deprecated:%d, is2Pipe:%d] for key:%d\n", elem->cmd.value, elem->cmd.paramNum, elem->cmd.needRsp, elem->cmd.deprecated, elem->cmd.is2Pipe, key);
+            return &(elem->cmd);
         }
     }
     return NULL;
@@ -141,9 +133,13 @@ Command *value_for_key(int key)
 
 void destory_commands_table()
 {
-    if (command_table)
+    Table *tmp          = NULL;
+    Table *current_elem = NULL;
+
+    HASH_ITER(hh, command_table, current_elem, tmp)
     {
-        table_free(command_table);
+        HASH_DEL(command_table, current_elem);
+        free(current_elem);
     }
 }
 

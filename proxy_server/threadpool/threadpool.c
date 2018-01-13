@@ -138,8 +138,8 @@ threadpool *threadpool_init(int thread_num)
     for(t=0; t<thread_num; ++t)
     {
 	    pthread_create(&(pthpool->pthreads[t]), NULL, (void*)threadpool_thread_run, (void*)pthpool);
-        //int tid = pthpool->pthreads[t];
-        //dbgprint("%s:%d:create thread with id:%d ",__FILE__, __LINE__, tid);
+        int tid = pthpool->pthreads[t];
+        dbgprint("%s:%d:create thread with id:%u\n",__FILE__, __LINE__, tid);
         //char* buf = malloc(12 * sizeof(char));
         //snprintf(buf, 12, "%d", tid);
         //dbgprint("key is :%s\n", buf);
