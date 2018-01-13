@@ -43,16 +43,19 @@ def test_performance(account):
 
 	with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
 		s.connect((HOST, PORT))
-		s.sendall(crc_str)
-		print('send data:%s to lserver' % (dic,))
-		
-		try:
-			s.settimeout(2)
-			buf=s.recv(1024)
-			print "client recv data: %s" %(c.reverse_crc8_data(buf))
-		except socket.timeout as e:
-			print("sock time out")
-			s.close()
+		loop = 2
+		while loop>0:
+			s.sendall(crc_str)
+			print('send data:%s to lserver' % (dic,))
+			
+			try:
+				s.settimeout(4)
+				buf=s.recv(1024)
+				print "client recv data: %s" %(c.reverse_crc8_data(buf))
+			except socket.timeout as e:
+				print("sock time out")
+				s.close()
+			loop -= 1
 			
 	#time.sleep(0.1)           
 
