@@ -69,7 +69,7 @@ void threadpool_thread_run(threadpool *pthpool)
 			{
 				function = pjob_node->function;
 				argv = pjob_node->arg;
-				//dbgprint("client %d has data to do...\n", ((SOCKDATA*)argv)->sock_fd);
+				// dbgprint("client %d has data to do...\n", ((SOCKDATA*)argv)->sock_fd);
 				function(argv);
 				free(pjob_node);
 				
@@ -180,6 +180,7 @@ void threadpool_job_queue_add(threadpool *pthpool, threadpool_job_node *new_node
 
 int threadpool_add_work(threadpool *pthpool, FUNC function, void *argv)
 {
+	
 	threadpool_job_node *job_node;
 	job_node = (threadpool_job_node*)malloc(sizeof(threadpool_job_node));
 

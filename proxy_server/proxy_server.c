@@ -49,7 +49,7 @@ int verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 
 void handle_accept(int ep_fd, int listen_fd)
 {
-    int  client_fd;    //client fd
+    int  client_fd = 0;    //client fd
 
     while(1)
     {
@@ -70,9 +70,8 @@ void handle_accept(int ep_fd, int listen_fd)
                 break; //return -4;
             }
         }
-        
-        SOCKCONN *sockConn = malloc_sockconn(ep_fd, client_fd, EPOLLIN|EPOLLET); //interest event
-        
+
+        SOCKCONN *sockConn = malloc_sockconn(ep_fd, client_fd, EPOLLIN|EPOLLET|EPOLLRDHUP); //interest event
 #ifdef SOCKSSL
         SSL *ssl = SSL_new(g_sslCtx);         					/* get new SSL state with context */
         if (ssl==NULL)
@@ -93,6 +92,14 @@ void handle_accept(int ep_fd, int listen_fd)
     }
 }
 
+void handle_disconnect(SOCKCONN *sockConn)
+{
+    if (sockConn==NULL) return;
+
+    dbgprint("free sockConn, with fd=%d, with address:%p\n", sockConn->sock_fd, sockConn);
+    threadpool_add_work(pthpool, (void*)free_sockConn_func, (void*)sockConn);
+}
+
 void handle_read(SOCKCONN *sockConn, int container[2])
 {
     if (sockConn==NULL) return;
@@ -100,7 +107,7 @@ void handle_read(SOCKCONN *sockConn, int container[2])
     SOCKDATA *sockData = malloc_sockData(sockConn, container);
     if(sockData != NULL)
     {
-        dbgprint("new read job, job number=%d, with fd=%d\n", ++jobs, sockConn->sock_fd);
+        dbgprint("new read job, job number=%d, with fd=%d, with address:%p\n", ++jobs, sockConn->sock_fd, sockData);
         threadpool_add_work(pthpool, (void*)read_sock_func, (void*)sockData);
     }
 }
@@ -113,7 +120,7 @@ void handle_write(SOCKCONN *sockConn)
     SOCKDATA *sockData = malloc_sockData(sockConn, container);
     if(sockData != NULL)
     {
-        dbgprint("new write job, with fd=%d send data out", sockConn->sock_fd);
+        dbgprint("new write job, with fd=%d send data out\n", sockConn->sock_fd);
         threadpool_add_work(pthpool, (void*)write_sock_func, (void*)sockData);
     }
 }
@@ -171,7 +178,7 @@ void loop_once(int ep_fd, int listen_fd, int container[2])
     {
         dbgprint("%s:%d:epoll_wait error:%d(%s)\n",__FILE__, __LINE__, errno, strerror(errno));
         if(errno == EINTR)
-            return;                        // return and try again
+            return;                         // return and try again
         else
         {
             if(pre_error==errno)
@@ -193,13 +200,21 @@ void loop_once(int ep_fd, int listen_fd, int container[2])
     {
         SOCKCONN *sockConn = (SOCKCONN*)events[sock_num].data.ptr;
         int _event = events[sock_num].events;
-        
+        sockConn->events = _event;
+
         if((_event & EPOLLERR) || (_event & EPOLLHUP) /*||(!(eevents & EPOLLIN))*/)
         {
             //an error has occured on this fd
             dbgprint("%s:%d:An error:%d(%s) has occured on this fd:%d, or the socket is not ready for reading\n",__FILE__, __LINE__, errno, strerror(errno), sockConn->sock_fd);
-            
-            close(sockConn->sock_fd);
+            // free_sockconn(sockConn);
+            handle_disconnect(sockConn);
+            continue;
+        }
+        else if((_event & EPOLLIN) && (_event & EPOLLRDHUP))
+        {
+            dbgprint("End of socket fd=%d. The remote has closed the connection\n", sockConn->sock_fd);
+            // free_sockconn(sockConn);
+            handle_disconnect(sockConn);
             continue;
         }
         else if(_event & EPOLLIN)                   //data in include
@@ -221,7 +236,7 @@ void loop_once(int ep_fd, int listen_fd, int container[2])
             handle_handshake(sockConn);
 #endif
         }
-        else if(_event & EPOLLOUT)             //data out
+        else if(_event & EPOLLOUT)                 //data out
         {
 #ifdef SOCKSSL
             if(!sockConn->sslConnected)
@@ -346,14 +361,17 @@ int main(int argc, char*argv[])
     }
     
     close(listen_fd);
-    
+    free(sockConn);
+
+    //free command table
+    destory_commands_table();
+
     //销毁线程池
     threadpool_destroy(pthpool);
-
 #ifdef SOCKSSL
     SSL_CTX_free(g_sslCtx);
     BIO_free(errBio);
 #endif
-    
+
     closelog();
 }

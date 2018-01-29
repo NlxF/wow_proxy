@@ -186,7 +186,7 @@ bool analysis_soap_response(char *rsp, size_t rsp_len, char rst[], size_t *rst_l
     if(!partition_response(rsp, rsp_len, http_header, soap))  //分离http头和soap content
         return 0;
     dbgprint("partition response...\n");
-    dbgprint("header:\n%s\n\ncontent:%s\n", http_header, soap);
+    // dbgprint("header:\n%s\n\ncontent:%s\n", http_header, soap);
 
     bool isOpOK;
     isOpOK = get_http_status(http_header, strlen(http_header));       //获取http头状态
@@ -195,7 +195,7 @@ bool analysis_soap_response(char *rsp, size_t rsp_len, char rst[], size_t *rst_l
     size_t size;
     char content[MAX_BUF_SIZE*4]={'\0'};
     size = get_soap_content(soap, isOpOK, content);     //获取soap content
-    dbgprint("soap content result:\n%s\n", content);
+    // dbgprint("soap content result:\n%s\n", content);
     if(size > 0 && size <= *rst_len)
     {
         strncpy(rst, content, size);
@@ -260,7 +260,8 @@ size_t make_soap_request(char *content, size_t len, char *soap_request)
     requestLength = strlen(request);
     
     sprintf(soap_request, "%s%s", request, soapEnvelope);
-    dbgprint("make soap request:\n%s\n", soap_request);
+    // dbgprint("make soap request:\n%s\n", soap_request);
+    dbgprint("make soap request\n");
     
     return (contentLength+requestLength);
 }

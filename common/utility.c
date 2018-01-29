@@ -310,11 +310,13 @@ SOCKCONN *malloc_sockconn(int ep_fd, int sock_fd, int events)
 
 void free_sockconn(SOCKCONN *sockConn)
 {
+    dbgprint("free sockconn of sock:%d with address:%p\n", sockConn->sock_fd, sockConn);
     if(sockConn != NULL)
     {
         if(sockConn->sock_fd > 0)
         {
             close(sockConn->sock_fd);
+            sockConn->sock_fd = 0;
         }
 #ifdef SOCKSSL
         if(sockConn->ssl)
@@ -348,6 +350,7 @@ SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int container[2]/*int read_fd, int
 
 void free_sockData(SOCKDATA *sockData)
 {
+    dbgprint("free sockData of sock:%d with address:%p and sock_conn address:%p\n", sockData->sockConn->sock_fd, sockData, sockData->sockConn);
     if (sockData != NULL)
     {
         free(sockData);
@@ -416,12 +419,14 @@ ssize_t readn_fd(int fd_read, char *szData, size_t nData)
     int retval = select(fd_read+1, &rfds, NULL, NULL, &tv);
     if(retval > 0)
     {
-        usleep(100*1000);            //微秒，等待0.1秒
+        // usleep(100*1000);            //微秒，等待0.1秒
         if(FD_ISSET(fd_read, &rfds))
         {
             char szBuf[MAX_BUF_SIZE] = {0};
             ssize_t nReadByte;
             do{
+                dbgprint("try to read data from sock:%d\n", fd_read);
+                is_sock_closed_by_peer(fd_read);
                 nReadByte = read(fd_read, szBuf, MAX_BUF_SIZE);
                 totalByte += nReadByte;
                 if(totalByte < nData)
@@ -444,43 +449,88 @@ ssize_t readn_fd(int fd_read, char *szData, size_t nData)
     return totalByte;
 }
 
+bool is_sock_closed_by_peer(int sock)
+{
+    if(sock <= 0)
+        return true;
+    
+    dbgprint("detect whether sock:%d is closed by peer\n", sock);
+    char c;
+    ssize_t n = recv(sock, &c, 1, MSG_PEEK|MSG_DONTWAIT);
+    if(n>0 || (n<0&&errno==EAGAIN))
+    {
+        return false;
+    }
+    else if(n == 0)
+    {
+        dbgprint("%s:%d:detect the sock:%d is closed by peer\n", __FILE__, __LINE__, sock);
+    }
+    else
+    {
+        dbgprint("%s:%d:sock %d occure error:%d(%s)\n", __FILE__, __LINE__, sock, errno, strerror(errno));
+    }
 
+    return true;
+}
+
+int reset_thread_local_soap_socket()
+{
+    dbgprint("reset thread local soap socket\n");
+    if(_td_sock_id > 0)
+        close(_td_sock_id);
+
+    _td_sock_id = 0;              //重新生成新的soap sock
+    int fd = make_soap_socket();  //尝试重新连接server
+    if(fd <= 0)
+        return (-1);
+    
+    _td_sock_id = fd;
+    return fd;
+}
 ssize_t writen_fd(int *pfd, const void * vptr, size_t n)
 {
-    size_t         nleft;
-    ssize_t        nwritten;
-    const char     *ptr;
-    int            fd = *pfd;
+    size_t         nleft      = n;
+    ssize_t        nwritten   = 0;
+    const char     *ptr       = vptr;
+    int            fd         = *pfd;
     
-    ptr = vptr;
-    nleft = n;
     while (nleft > 0)
     {
+#ifdef _SOAP
+        if(is_sock_closed_by_peer(fd))
+        {
+            if((fd=reset_thread_local_soap_socket()) <= 0)
+                return (-1);
+        }
+#endif
         if ((nwritten=write(fd, ptr, nleft)) <= 0)
         {
             if (nwritten < 0 && errno == EINTR)
             {
                 dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "send data intterupt");
-                nwritten = 0;              /* and call write() again */
+                nwritten = 0;              //call write() again
             }
             else if(nwritten < 0 && errno == EPIPE)
             {
-                dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "socket closed by the peer");
-                close(_td_sock_id);
-                _td_sock_id = 0;
-                fd = make_soap_socket();  //尝试重新连接server
+                dbgprint("%s:%d:pipe or socket:%d closed by the peer\n", __FILE__, __LINE__, fd);
+#ifdef _SOAP
+                if((fd=reset_thread_local_soap_socket()) <= 0)
+                    return (-1);
+#else
+                return (-1);
+#endif
                 nwritten = 0;             //再次发送
             }
             else
             {
-                dbgprint("%s:%d:write data error:%ld, errno:%d\n", __FILE__, __LINE__, nwritten, errno);
-                return (- 1);              /* error */
+                dbgprint("%s:%d:write sock:%d error:%ld, errno:%d\n", __FILE__, __LINE__, fd, nwritten, errno);
+                return (-2);              /* error */
             }
         }
         
         nleft -= nwritten;
         ptr += nwritten;
-        dbgprint("already write fd:%d, %ld bytes, left %ld, errno=%d, message:%s\n", fd, nwritten, nleft, errno, strerror(errno));
+        dbgprint("already write fd:%d, %ld bytes, left %ld\n", fd, nwritten, nleft);
     }
     *pfd = fd;          //尝试返回更新后的sock
 
@@ -491,7 +541,7 @@ int make_soap_socket()
 {
     if(_td_sock_id > 0)
     {
-        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "soap socket already exist");
+        dbgprint("%s:%d:soap socket:%d already exist\n", __FILE__, __LINE__, _td_sock_id);
         return _td_sock_id;              // 直接返回已经存在的sock
     }
 
@@ -501,7 +551,7 @@ int make_soap_socket()
     // create a reliable, stream socket using TCP.
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "try to create soap socket error...");
+        dbgprint("%s:%d:try to create soap socket failed with error:%s\n", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     
@@ -521,7 +571,7 @@ int make_soap_socket()
     int num = 0;
     while(connect(socket_fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
     {
-        dbgprint("%s:%d:%d:%s\n", __FILE__, __LINE__, num+1, "try to make connect to soap server, error...");
+        dbgprint("%s:%d:%d:try to make connect to soap server failed with error:%s\n", __FILE__, __LINE__, num+1, strerror(errno));
         if(++num >= 3)
         {
             dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "try many timers to connect to soap server, failed!");
@@ -530,7 +580,8 @@ int make_soap_socket()
 
         // usleep(100*1000);            //微秒，等待0.1秒
     }
-    dbgprint("%s:%d:%s:%d\n", __FILE__, __LINE__, "make new soap socket", socket_fd);
+    dbgprint("%s:%d\n", "make new soap socket", socket_fd);
+    _td_sock_id = socket_fd;
     return socket_fd;
 }
 

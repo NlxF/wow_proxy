@@ -22,6 +22,9 @@
 #include <openssl/err.h>
 #endif
 
+#define ERRORMSG1   "connect to wow server failed"
+#define ERRORMSG2   "Broken Pipe"
+
 #ifdef _SOAP
 // #define SOAPSERVERIP "127.0.0.1"
 // #define SOAPSERVERPORT 7878
@@ -101,10 +104,13 @@ typedef struct
 
 /** JSON消息结构
 client ------------------------>web server----------------------------------->wow server
-                {                                {
-                    "type":1                        “needResponse” : 1,
-                    "command": "xxxx"               "message": "xxxxx";
-                }                                   "len": 100
+        {                                        {
+            "type":1                                "needResponse" : 1,
+            "command": "xxxx"   =======>            "message": "xxxxx";
+        }                                           "len": 100
                                                  }
+                                                         
+                                                         
+                                                    
 **/
 #endif

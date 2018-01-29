@@ -53,6 +53,7 @@ static int callback_record(void *data, int argc, char **argv, char **azColName)
     }
     
     HASH_ADD_INT(command_table, command_id, elem); 
+    elem = NULL;
     
     return 0;
 }
@@ -78,7 +79,7 @@ int init_commands_table()
     int rc = sqlite3_open(db_path, &cmds_db);
     if( rc )
     {
-        dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(cmds_db), db_path);
+        // dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(cmds_db), db_path);
         return -1;
     }
     //dbgprint("Opened database successfully\n");
@@ -102,7 +103,7 @@ int init_commands_table()
     rc = sqlite3_exec(cmds_db, sql, callback_record, NULL/*(void*)data*/, &zErrMsg);
     if( rc != SQLITE_OK )
     {
-        dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
+        // dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
         sqlite3_free(zErrMsg);
         sqlite3_close(cmds_db);
         return -1;

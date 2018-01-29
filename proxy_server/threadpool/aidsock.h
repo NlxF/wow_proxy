@@ -35,5 +35,11 @@ void *read_sock_func(void *p);
   **/
 void *write_sock_func(void *p);
 
+/**
+ 说明：释放申请的sockConn内存
+ 参数：要释放的内存的指针
+ 返回值：无
+ **/
+void *free_sockConn_func(void *p);
 
 #endif

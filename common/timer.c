@@ -80,7 +80,7 @@ static bool free_a_timer(int timer_fd)
         return false;
     }
     HASH_FIND_INT(g_timer_table, &timer_fd, column); 
-    if (spdata != NULL) 
+    if (column != NULL) 
     {
         HASH_DEL(g_timer_table, column);
         free(column->timer_data);    
@@ -93,7 +93,7 @@ static bool free_a_timer(int timer_fd)
 
 static bool free_timer_table()
 {
-    HashTable* current_data, tmp;
+    HashTable* current_data, *tmp;
 
     if (pthread_rwlock_wrlock(&g_rw_lock) != 0) 
     {
@@ -133,7 +133,7 @@ static void epoll_loop_run()
             {
                 close(g_epoll_fd);
                 free_timer_table();             //释放所有的timer及与之关联的data
-                rest_status()                   //epoll_wait发生未知错误导致线程退出,重置状态
+                rest_status();                  //epoll_wait发生未知错误导致线程退出,重置状态
 			    break;
             }
 		}
@@ -232,8 +232,8 @@ void destroy_clock()
 {
     close(g_epoll_fd);
     free_timer_table();                  //释放所有的timer及与之关联的data
-    rest_status()                        
-    pthread_rwlock_destroy(g_rw_lock);   //销毁读写锁
+    rest_status();                        
+    pthread_rwlock_destroy(&g_rw_lock);   //销毁读写锁
 
 }
 
@@ -257,7 +257,7 @@ int register_a_timer(time_t delay, bool repeat, timer_task_func_t func, int priv
     // store timer_fd to hashtable
     TIMER_DATA* column = (TIMER_DATA*)malloc(sizeof(TIMER_DATA));
     column->func = func;
-    colun->sock  = priv;
+    column->sock  = priv;
     if(add_a_timer(timer_fd, column))
     {
         // add timerfd to epoll

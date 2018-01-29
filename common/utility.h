@@ -71,6 +71,23 @@ int create_server(int port);
 **/
 int set_non_blocking(int fd);
 
+/**
+ 检测对端是否已关闭socket
+ @param: 要检测的sock
+ @return：关闭返回true
+*/
+bool is_sock_closed_by_peer(int sock);
+
+/**
+ 重新设置线程本地存储的soap sock
+ @return: 成功返回新的soap sock,失败返回<0
+*/
+int reset_thread_local_soap_socket();
+
+/**
+ * 返回soap server的错误信息
+*/
+void write_fd_error_message();
 
 /**
  尝试向描述符写入n个字节
@@ -92,7 +109,7 @@ ssize_t readn_fd(int fd_read, char *szData, size_t nData);
 
 
 /**
-说明：创建一个soap socket
+说明：创建一个线程相关的soap socket
 返回值: 成功返回socket fd，失败返回值<0
  */
 int make_soap_socket();
