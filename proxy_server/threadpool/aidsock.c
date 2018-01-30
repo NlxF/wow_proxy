@@ -478,10 +478,7 @@ void write_pipe_or_sock(SOCKDATA *sockData, int resp, char cmd[], size_t size)
     if((sock_fd=make_soap_socket()) <= 0)   
     {
         // dbgprint("%s:%d:%s\n", __FILE__, __LINE__, "make soap socket failed!!!");
-        sockData->msg = ERRORMSG1;
-        sockData->size = strlen(ERRORMSG1);
-        write_sock_func(sockData);
-        // write_fd_error_message();
+        write_fd_error_message(sockData, 1);
         return;
     }
     fd_write = sock_fd;
@@ -503,15 +500,11 @@ void write_pipe_or_sock(SOCKDATA *sockData, int resp, char cmd[], size_t size)
         {
             //write soap or pipe faile
 #ifdef _SOAP
-            sockData->msg = ERRORMSG1;
-            sockData->size = strlen(ERRORMSG1);
+            write_fd_error_message(sockData, 1);
 #else
-            sockData->msg = ERRORMSG2;
-            sockData->size = strlen(ERRORMSG2);
+            write_fd_error_message(sockData, 2);
             pthread_rwlock_unlock(&rwlock);                 // if broken pipe
 #endif
-            write_sock_func(sockData);
-            // write_fd_error_message();
             return;
         }
 
@@ -524,7 +517,7 @@ void write_pipe_or_sock(SOCKDATA *sockData, int resp, char cmd[], size_t size)
 #ifdef _SOAP
             char szrst[MAX_BUF_SIZE*4] = {0};
             size_t rst_len = sizeof(szrst);
-            analysis_soap_response(szBuf, nbytes, szrst, &rst_len);
+            sockData->isOpOk = analysis_soap_response(szBuf, nbytes, szrst, &rst_len);
             memcpy(szBuf, szrst, rst_len);
             szBuf[rst_len] = '\0';
             nbytes = rst_len;
@@ -620,6 +613,7 @@ void *write_sock_func(void *p)
     SOCKDATA *sockData = (SOCKDATA*)p;
 
     cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "isopok", sockData->isOpOk);
     cJSON_AddStringToObject(root, "message", sockData->msg);
     cJSON_AddNumberToObject(root, "len", sockData->size);
     char *json_str = cJSON_Print(root);
