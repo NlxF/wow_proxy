@@ -46,3 +46,5 @@ commands.db
 proxy_server
 objs/
 gsserver
+hex.c
+hex

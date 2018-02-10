@@ -206,14 +206,12 @@ void loop_once(int ep_fd, int listen_fd, int container[2])
         {
             //an error has occured on this fd
             dbgprint("%s:%d:An error:%d(%s) has occured on this fd:%d, or the socket is not ready for reading\n",__FILE__, __LINE__, errno, strerror(errno), sockConn->sock_fd);
-            // free_sockconn(sockConn);
             handle_disconnect(sockConn);
             continue;
         }
         else if((_event & EPOLLIN) && (_event & EPOLLRDHUP))
         {
-            dbgprint("End of socket fd=%d. The remote has closed the connection\n", sockConn->sock_fd);
-            // free_sockconn(sockConn);
+            dbgprint("The remote has closed the connection of fd=%d\n", sockConn->sock_fd);
             handle_disconnect(sockConn);
             continue;
         }

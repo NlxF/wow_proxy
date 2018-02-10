@@ -35,6 +35,7 @@
 #define WSERVER2LSERVER ".wserver2lserver"
 #endif
 
+#define HEADSIZE 2
 #define MAX_BUF_SIZE 1024
 #define LISTEN_MAX 500
 
@@ -54,6 +55,14 @@ pTM->tm_year+1900, pTM->tm_mon+1, pTM->tm_mday, pTM->tm_hour+8, pTM->tm_min, pTM
 }while (0)
 
 #define dbgprint(format, ...)  PRINT_0(format, ##__VA_ARGS__)
+
+#define SAFE_FREE(x) \
+    if(x!=NULL)\
+    {\
+        free(x);\
+        x = NULL;\
+    }
+       
 
 #ifdef SOCKSSL
 typedef  int (*VerifyCallback)(int, X509_STORE_CTX *);
@@ -81,6 +90,7 @@ typedef struct
     SOCKCONN*  sockConn;      //connect info
     int  size;                //message len
     char *msg;                //send message
+    bool isOpOk;              //is op success
 }SOCKDATA;
 
 
@@ -102,7 +112,12 @@ typedef struct
 }Table;
 
 
-/** JSON消息结构
+/** 
+ ___________________________
+|    head   |    message    |
+|___2byte___|____dynamic____|
+
+JSON消息结构体
 client ------------------------>web server----------------------------------->wow server
         {                                        {
             "type":1                                "needResponse" : 1,

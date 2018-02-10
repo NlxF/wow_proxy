@@ -310,7 +310,7 @@ SOCKCONN *malloc_sockconn(int ep_fd, int sock_fd, int events)
 
 void free_sockconn(SOCKCONN *sockConn)
 {
-    dbgprint("free sockconn of sock:%d with address:%p\n", sockConn->sock_fd, sockConn);
+    dbgprint("In free sockconn, sock:%d with address:%p\n", sockConn->sock_fd, sockConn);
     if(sockConn != NULL)
     {
         if(sockConn->sock_fd > 0)
@@ -351,10 +351,7 @@ SOCKDATA *malloc_sockData(SOCKCONN *sockConn, int container[2]/*int read_fd, int
 void free_sockData(SOCKDATA *sockData)
 {
     dbgprint("free sockData of sock:%d with address:%p and sock_conn address:%p\n", sockData->sockConn->sock_fd, sockData, sockData->sockConn);
-    if (sockData != NULL)
-    {
-        free(sockData);
-    }
+    SAFE_FREE(sockData);
 }
 
 
@@ -402,7 +399,7 @@ int set_sock_keepalive(int socket_fd)
 
 ssize_t readn_fd(int fd_read, char *szData, size_t nData)
 {
-    if(fd_read < 0)
+    if(fd_read <= 0)
         return -1;
     
     bzero(szData, nData);
@@ -447,6 +444,20 @@ ssize_t readn_fd(int fd_read, char *szData, size_t nData)
     }
     
     return totalByte;
+}
+
+void write_fd_error_message(SOCKDATA *sockData, int err)
+{
+    char *szErrMsg = NULL;
+    if(err == 1)
+        szErrMsg = ERRORMSG1;
+    else if(err == 2)
+        szErrMsg = ERRORMSG2;
+    
+    sockData->isOpOk = false;
+    sockData->msg = szErrMsg;
+    sockData->size = strlen(szErrMsg);
+    write_sock_func(sockData);
 }
 
 bool is_sock_closed_by_peer(int sock)

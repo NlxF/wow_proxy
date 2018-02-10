@@ -85,11 +85,6 @@ bool is_sock_closed_by_peer(int sock);
 int reset_thread_local_soap_socket();
 
 /**
- * 返回soap server的错误信息
-*/
-void write_fd_error_message();
-
-/**
  尝试向描述符写入n个字节
  @param: 要写入的描述符指针，指针是用来回传更新的sock
  @param: 内容缓存
@@ -107,6 +102,12 @@ ssize_t writen_fd(int *fd, const void * vptr, size_t n);
  */
 ssize_t readn_fd(int fd_read, char *szData, size_t nData);
 
+/**
+ * 向client返回soap server的错误信息
+ @param sockData 发送信息
+ @param err 错误类型
+*/
+void write_fd_error_message(SOCKDATA *sockData, int err);
 
 /**
 说明：创建一个线程相关的soap socket

@@ -31,7 +31,7 @@ def assembly_request(cmds):
 
 def test_performance(account):
 
-	cmd = [[{'op': '1'}, {'name': account}, {'pwd': '123456'}]] #, [{'op': '2'}, {'name': 'username'}]]
+	cmd = [[{'op': str(i)}, {'name': account}, {'pwd': '123456'}] for i in range(14)] #, [{'op': '2'}, {'name': 'username'}]]
 	# cmd = [[{'op': '12'}, {'account': 'ads'}, {'name': '20'}]]
 	# cmd = [[{'op': '13'}, {'role': 'CHRACE;UPLEVEL'}, {'label': u'变种族;升级'}, {'value': '10'}]]
         
@@ -40,23 +40,31 @@ def test_performance(account):
 	
 	c = crc8.crc8()
 	crc_str = c.crc8_data(news_str)
+	print('size fo send str is:%d' % len(crc_str))
 
-	with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-		s.connect((HOST, PORT))
-		loop = 1
-		while loop>0:
-			s.sendall(crc_str)
-			print('send data:%s to lserver' % (dic,))
-			
-			try:
-				s.settimeout(4)
-				buf=s.recv(1024)
-				print "client recv data: %s" %(c.reverse_crc8_data(buf))
-			except socket.timeout as e:
-				print("sock time out")
-				s.close()
-			loop -= 1
-			
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+	s.connect((HOST, PORT))
+	loop = 1
+	while loop>0:
+		try:
+			# print('send data:%s to lserver' % crc_str)
+			send_num = len(crc_str)
+			data = bytearray((send_num).to_bytes(2, 'big')) + crc_str.encode()
+			print(data)
+			s.sendall( data )
+			print('send data finish')
+			s.settimeout(4)
+			buf=s.recv(1024)
+			print("client recv data: %s" %(c.reverse_crc8_data(buf)))
+		except socket.timeout as e:
+			print("sock time out")
+		except socket.error as e:
+			print("socket error except occure")
+		except Exception as e:
+			print(e)
+		loop -= 1
+	print("socket close")
+	s.close()
 	#time.sleep(0.1)           
 
 
@@ -64,10 +72,10 @@ def test_performance(account):
 if __name__ == "__main__":
 	pool_size = multiprocessing.cpu_count() * 2
 	pool = multiprocessing.Pool(processes=pool_size)
-	for i in xrange(5):
-		name = '{0}{1}'.format('usernameee', i)
+	for i in range(1):
+		name = '{0}{1}'.format('username', i)
 		pool.apply_async(test_performance, (name, ))
 	pool.close()
 	pool.join()
-	print "Sub-process(es) done."
+	print("Sub-process(es) done.")
 	

@@ -41,35 +41,150 @@ void print_paese_error(int err)
     }
 }
 
-// int read_normal_sock(SOCKDATA *sockData, char *szBuf, size_t size)
-int read_normal_sock(int client_fd, char *szBuf, size_t size)
+ssize_t recv_peek(int sockfd, void *buf, size_t len)    
+{    
+    int ret = 0;
+    int idx = 10;                                //最多尝试10次
+    while (idx > 0)  
+    {    
+        dbgprint("read head size\n");
+        ret = recv(sockfd, buf, len, MSG_PEEK);    
+        if (ret == -1 && errno == EINTR)         //如果recv是由于被信号打断, 则需要继续(continue)查看
+        {  
+            idx--;
+            continue;    
+        }
+        break;    
+    }
+    return ret;
+}
+
+/**返回值说明:  
+    == count: 说明正确返回, 已经真正读取了count个字节  
+    == -1   : 读取出错返回  
+    <  count: 读取到了末尾  
+**/
+ssize_t readn(int fd, void *buf, size_t count)
+{
+    ssize_t nRead = 0;    
+    size_t nLeft = count;   
+    char *pBuf = (char *)buf;
+    while (nLeft > 0)    
+    {    
+        if ((nRead = read(fd, pBuf, nLeft)) < 0)                            
+        {    
+            if (errno == EINTR)                                                                                                                                                                                                                                                                                 
+                continue;          //如果读取操作是被信号打断了, 则说明还可以继续读  
+            else
+            {
+                if (errno != EAGAIN)
+                {
+                    dbgprint("%s:%d:client fd=%d, Some unexpected error occurred, the error(%d) message is %s\n", __FILE__, __LINE__, fd, errno, strerror(errno));
+                    return -1;
+                }
+                else
+                {
+                    //errno == EAGAIN
+                    dbgprint("We have read all data of sock:%d. So go back to the main loop\n", fd);
+                    return pBuf-(char*)buf;
+                }
+            }
+        }    
+        if (nRead == 0)             //读取到末尾
+        {
+            dbgprint("read end of socket fd=%d.\n", fd);  
+            return count-nLeft;    
+        }
+    
+        nLeft -= nRead;            //正常读取  
+        pBuf += nRead;    
+    }    
+    return count;
+}
+
+/**返回值说明:  
+    == count: 说明正确返回, 已经真正写入了count个字节  
+    == -1   : 写入出错返回  
+**/    
+// ssize_t writen(int fd, const void *buf, size_t count)    
+// {    
+//     size_t nLeft = count;    
+//     ssize_t nWritten = 0;    
+//     char *pBuf = (char *)buf;    
+//     while (nLeft > 0)    
+//     {    
+//         if ((nWritten = write(fd, pBuf, nLeft)) < 0)    
+//         {    
+//             if (errno == EINTR)    
+//                 continue;          //如果写入操作是被信号打断了, 则说明还可以继续写入    
+//             else    
+//                 return -1;         //否则就是其他错误    
+//         }    
+//         else if (nWritten == 0)    //如果 ==0则说明是什么也没写入, 可以继续写    
+//             continue;    
+    
+//         nLeft -= nWritten;         //正常写入    
+//         pBuf += nWritten;    
+//     }    
+//     return count;    
+// }
+
+int convert_hex_to_int(unsigned char *szBuf, int headSize)
+{   
+    int value = 0;
+    int i;
+    for(i=0; i<headSize; ++i)
+    {
+        int bit = (int)szBuf[i];
+        dbgprint("%d byte is:%x\n", i, bit);
+        if(bit>255 || bit<0)
+            return 0;
+        
+        value = value * 256 + bit;
+    }
+
+    return value;
+}
+
+bool convert_int_to_hex(unsigned int value, unsigned char*buf)
+{
+    if(value>0xffff || value<0)
+        return false;
+
+    memset(buf, '\x0', HEADSIZE);
+    if(value <= 0xff)
+        buf[1] = (unsigned char)value;
+    else
+    {
+        buf[0] = (unsigned char)(value / 256);
+        buf[1] = (unsigned char)(value % 256);
+    }
+
+    return true;
+}
+
+int read_normal_sock(int client_fd, char **szBuf)
 {
     int nbytes;
-    
-    // int client_fd = sockData->sockConn->sock_fd;
-    nbytes = read(client_fd, szBuf, size);
-    if(nbytes == -1)
-    {
-        if (errno != EAGAIN)
-        {
-            dbgprint("%s:%d:client fd=%d, Some unexpected error occurred, the error(%d) message is %s\n", __FILE__, __LINE__, client_fd, errno, strerror(errno));
-        }
-        else
-        {
-            //errno == EAGAIN
-            dbgprint("We have read all data of sock:%d. So go back to the main loop\n", client_fd);
-        }
-        return -1;// break;
-    }
-    else if (nbytes == 0)
-    {
-        //End of file.
-        dbgprint("End of socket fd=%d. The remote has closed the connection.\n", client_fd);
-        return -1;// break;
-    }
-    dbgprint("read from client fd=%d\n", client_fd);
-    
-    return nbytes;
+    unsigned char szHeadBuf[HEADSIZE+1] = {'\0'};
+
+    nbytes = recv_peek(client_fd, szHeadBuf, HEADSIZE);
+    dbgprint("read data:%d, message size:%x%x\n", nbytes, szHeadBuf[0], szHeadBuf[1]);
+    if (nbytes <= 0)                   //如果查看失败或者对端关闭, 则直接返回
+        return nbytes;
+
+    int nLeft = convert_hex_to_int(szHeadBuf, HEADSIZE);
+    dbgprint("convert char string to int:%d\n", nLeft);
+    if(nLeft <= 0)
+        return -1;                     //如果包格式不正确
+
+    nLeft += HEADSIZE;                 //加上头部字节
+    char *p = calloc(sizeof(char), nLeft);
+    int nRead = readn(client_fd, (void*)p, nLeft);
+    dbgprint("read from client fd=%d, %d bytes\n", client_fd, nRead);
+
+    *szBuf = p;
+    return nRead;
 }
 
 #ifdef SOCKSSL
@@ -187,15 +302,12 @@ void free_command(int resp[], char *cmds[], int is2Pipe[], int num)
     int i;
     for (i=0; i<num; i++)
     {
-        if (cmds[i] != NULL)
-        {
-            free(cmds[i]);
-        }
+        SAFE_FREE(cmds[i]);
     }
     
-    free(resp);
-    free(is2Pipe);
-    free(cmds);
+    SAFE_FREE(resp);
+    SAFE_FREE(is2Pipe);
+    SAFE_FREE(cmds);
 }
 
 int vaild_item(cJSON *cmds, cJSON *keys, int idx, char *op[])
@@ -318,13 +430,16 @@ int parse_object(cJSON *cmds, cJSON *keys, char**value, int *fs)
 
 int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp[], int *is2Pipe[])
 {
-    if (original_msg==NULL||nbytes<=0)
+    if (original_msg==NULL || nbytes<=0)
         return 0;
     
-    uint8_t podata[MAX_BUF_SIZE] = {0};
+    nbytes -= HEADSIZE;                      // 减去头部字节
+    original_msg += HEADSIZE;
+    uint8_t *podata = calloc(sizeof(uint8_t), nbytes);
     if(reverse_crc_data(original_msg, nbytes, (void*)podata)!=0)
     {
-        dbgprint("The data from client is invalid: crc error");
+        dbgprint("The data from client is invalid: crc error\n");
+        SAFE_FREE(podata);
         return 0;
     }
     //parse JSON
@@ -334,8 +449,11 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
     {
         const char *err_msg = cJSON_GetErrorPtr();
         dbgprint("Parse JSON error:%s\n", err_msg);
+        SAFE_FREE(podata);
         return 0;
     }
+    SAFE_FREE(podata);
+
     cJSON *cmdsArray = cJSON_GetObjectItem(root, "values");   //命令数组
     cJSON *keysArray = cJSON_GetObjectItem(root, "keys");     //键
     if(cmdsArray==NULL || keysArray==NULL)
@@ -373,9 +491,9 @@ int analysis_message(char *original_msg, size_t nbytes, char **cmds[], int *resp
         {
             print_paese_error(rs[i]);                         //解析是否出错
             cJSON_Delete(root);                               //有一个错误整串命令都放弃
-            free(rs);
-            free(fs);
-            free(values);
+            SAFE_FREE(rs);
+            SAFE_FREE(fs);
+            SAFE_FREE(values);
             return 0;
         }
     }
@@ -394,7 +512,8 @@ void *read_sock_func(void *p)
     if(p == NULL)
         return NULL;
 
-    char szBuf[MAX_BUF_SIZE*4] = {0};
+    char szBuf[MAX_BUF_SIZE] = {0};
+    char *pszBuf = NULL;
     SOCKDATA *sockData = (SOCKDATA*)p;
     
     sqlite3 *db = NULL;
@@ -406,19 +525,24 @@ void *read_sock_func(void *p)
     {
         int nbytes;
 #ifndef SOCKSSL
-        nbytes = read_normal_sock(sock, szBuf, sizeof(szBuf));
+        nbytes = read_normal_sock(sock, &pszBuf);
 #else
         nbytes = read_ssl_sock(ssl, szBuf, sizeof(szBuf));
 #endif
         if (nbytes < 0)
+        {
+            dbgprint("read from sock:%d failed\n", sock);
+            SAFE_FREE(pszBuf);
             break;
+        }
         
         int *resp = NULL;        //是否有效命令
         char **cmds = NULL;      //命令字符串
         int *is2Pipe = NULL;     //操作类型,写入管道还是数据库
         
         dbgprint("start analysis message\n");
-        int num = analysis_message(szBuf, nbytes, &cmds, &resp, &is2Pipe);     //返回命令数组
+        int num = analysis_message(pszBuf, nbytes, &cmds, &resp, &is2Pipe);     //返回命令数组
+        SAFE_FREE(pszBuf);
         if (num <= 0)
         {
             dbgprint("analysis message error: no valid command.\n");
@@ -627,14 +751,15 @@ void *write_sock_func(void *p)
     }
     
     int len;
-	if((len=crc_data(json_str, size, buf))==-1)
+	if((len=crc_data(json_str, size, buf+HEADSIZE))==-1)
 	{
         cJSON_Delete(root);
 		return NULL;
 	}
-
+    
+    convert_int_to_hex(len, buf);
+    len += HEADSIZE;
 	int nbytes;
-	//nbytes =send(sockData->sockConn->sock_fd, buf, len, 0);
 #ifndef SOCKSSL
     int client_fd = sockData->sockConn->sock_fd;
     nbytes = writen_fd(&client_fd, buf, len);
@@ -643,7 +768,7 @@ void *write_sock_func(void *p)
     nbytes = SSL_write(_ssl, buf, len);
 #endif
 
-    free(json_str);
+    SAFE_FREE(json_str);
     cJSON_Delete(root);
     
     dbgprint("write job finish!!!\n");
