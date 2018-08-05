@@ -456,7 +456,6 @@ void write_fd_error_message(SOCKDATA *sockData, int err)
     
     sockData->isOpOk = false;
     sockData->msg = szErrMsg;
-    sockData->size = strlen(szErrMsg);
     write_sock_func(sockData);
 }
 

@@ -88,7 +88,6 @@ typedef struct
     int  write_fd;            //pipe write fd
 #endif
     SOCKCONN*  sockConn;      //connect info
-    int  size;                //message len
     char *msg;                //send message
     bool isOpOk;              //is op success
 }SOCKDATA;
@@ -122,8 +121,7 @@ client ------------------------>web server----------------------------------->wo
         {                                        {
             "type":1                                "needResponse" : 1,
             "command": "xxxx"   =======>            "message": "xxxxx";
-        }                                           "len": 100
-                                                 }
+        }                                        }
                                                          
                                                          
                                                     

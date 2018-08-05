@@ -647,7 +647,6 @@ void write_pipe_or_sock(SOCKDATA *sockData, int resp, char cmd[], size_t size)
             nbytes = rst_len;
 #endif
             sockData->msg = szBuf;
-            sockData->size = nbytes;
             write_sock_func(sockData);
         }
         else if(nbytes == 0)
@@ -739,7 +738,6 @@ void *write_sock_func(void *p)
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "isopok", sockData->isOpOk);
     cJSON_AddStringToObject(root, "message", sockData->msg);
-    cJSON_AddNumberToObject(root, "len", sockData->size);
     char *json_str = cJSON_Print(root);
 
     uint8_t buf[MAX_BUF_SIZE*4] = {0};
