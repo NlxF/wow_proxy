@@ -1,14 +1,9 @@
 FROM ubuntu:bionic
 
-# RUN apt update && apt install -y git cmake make gcc g++ clang libssl-dev
-# RUN useradd -m docker && echo "docker:docker" | chpasswd && adduser docker sudo
-# USER docker
-
-# RUN apt update && apt -y install wget python
-# RUN wget http://skywind3000.github.io/emake/emake.py
-RUN /usr/bin/python emake.py -i
+RUN apt update && apt install -y git cmake make gcc g++ clang libssl-dev python2.7
 
 ADD wow_proxy /azerothcore/wow_proxy
 
 RUN cd /azerothcore/wow_proxy; \
+    /usr/bin/python2.7 emake.py -i; \
     emake make.mak;
