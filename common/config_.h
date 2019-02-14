@@ -35,6 +35,7 @@
 #define WSERVER2LSERVER ".wserver2lserver"
 #endif
 
+#define SERVERPORT  18083
 #define HEADSIZE 2
 #define MAX_BUF_SIZE 1024
 #define LISTEN_MAX 500

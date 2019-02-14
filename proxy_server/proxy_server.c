@@ -332,7 +332,7 @@ int main(int argc, char*argv[])
 #endif
     
     /* start socket */
-    int listen_fd = create_server(8083);
+    int listen_fd = create_server(SERVERPORT);
     if (listen_fd <= 0)
     {
         return -1;
