@@ -1,4 +1,4 @@
-FROM ubuntu:bionic
+FROM ubuntu:bionic-third
 
 RUN apt update && apt install -y git cmake make gcc g++ clang libssl-dev python2.7
 
