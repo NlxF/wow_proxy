@@ -54,13 +54,13 @@ class crc8(object):
 		return msg+chr(self.crc8(msg))
 
 	def reverse_crc8_data(self, msg):
-		if self.is_data_integrity(msg):
+		if not self.is_data_integrity(msg):
 			return msg[:-1]
-
 
 
 if __name__ == "__main__":
 	c = crc8()
 	crc_str = c.crc8_data("hello world!qeqweqeqweqeqw")
-	print(crc_str)
+	# hex_str = ":".join("{:02x}".format(ord(c)) for c in crc_str)
+	# print(hex_str)
 	print(c.reverse_crc8_data(crc_str))

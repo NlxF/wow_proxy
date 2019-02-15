@@ -43,6 +43,7 @@ proxy_server/sqlite/aidsql-test
 test/ss/client/makefile的副本
 proxy_server/proxy_server
 proxy_server
+test_crc8
 objs/
 gsserver
 hex.c
