@@ -255,12 +255,12 @@ size_t make_soap_request(char *content, size_t len, char *soap_request)
     sprintf(request, "%sContent-Type: text/xml; charset=UTF-8\r\n", request);
     sprintf(request, "%sContent-Length: %d\r\n", request, contentLength);
     sprintf(request, "%sSOAPAction: \"urn:TC#executeCommand\"\r\n", request);
-    sprintf(request, "%sAuthorization: Basic YWRzOjEyMw==\"\r\n", request);
+    sprintf(request, "%sAuthorization: Basic QURTOjEyMw==\"\r\n", request);
     sprintf(request, "%s\r\n", request);
     requestLength = strlen(request);
     
     sprintf(soap_request, "%s%s", request, soapEnvelope);
-    // dbgprint("make soap request:\n%s\n", soap_request);
+    dbgprint("make soap request:\n%s\n", soap_request);
     dbgprint("make soap request\n");
     
     return (contentLength+requestLength);

@@ -590,7 +590,7 @@ int make_soap_socket()
 
         // usleep(100*1000);            //微秒，等待0.1秒
     }
-    dbgprint("%s:%d\n", "make new soap socket", socket_fd);
+    // dbgprint("%s:%d\n", "make new soap socket", socket_fd);
     _td_sock_id = socket_fd;
     return socket_fd;
 }

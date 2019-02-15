@@ -9,7 +9,7 @@ import multiprocessing
 import random
 from contextlib import closing
 
-HOST = '10.49.199.41' # '127.0.0.1'
+HOST = '127.0.0.1'
 PORT = 8083
 MESSAGE = "Hello world!"
 
