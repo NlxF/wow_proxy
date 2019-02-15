@@ -215,7 +215,7 @@ size_t make_soap_request(char *content, size_t len, char *soap_request)
     char request[MAX_BUF_SIZE*4] = {'\0'};
     char soapEnvelope[MAX_BUF_SIZE] = {'\0'};
     
-    /*char s0[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n";
+    char s0[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n";
     char s1[] = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns1=\"urn:TC\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:SOAP-ENC=\"http://schemas.xmlsoap.org/soap/encoding/\" SOAP-ENV:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n";
     char s2[] = "  <SOAP-ENV:Body>\r\n";
     char s3[] = "    <ns1:executeCommand>\r\n";
@@ -225,23 +225,23 @@ size_t make_soap_request(char *content, size_t len, char *soap_request)
     char s7[] = "</SOAP-ENV:Envelope>\r\n";
 
     char s8[MAX_BUF_SIZE] = {'\0'};
-    sprintf(s8, s4, content);*/
+    sprintf(s8, s4, content);
 
-    char s0[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n";
-    char s1[] = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:SOAP-ENC=\"http://schemas.xmlsoap.org/soap/encoding/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:ns=\"urn:sum\">\r\n";
-    char s2[] = "  <SOAP-ENV:Body SOAP-ENV:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n";
-    char s3[] = "    <ns:sum>\r\n";
-    char s4[] = "      <a>8</a>\r\n";
-    char s5[] = "      <b>9</b>\r\n";
-    char s6[] = "    </ns:sum>\r\n";
-    char s7[] = "  </SOAP-ENV:Body>\r\n";
-    char s8[] = "</SOAP-ENV:Envelope>\r\n";
+    // char s0[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n";
+    // char s1[] = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:SOAP-ENC=\"http://schemas.xmlsoap.org/soap/encoding/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:ns=\"urn:sum\">\r\n";
+    // char s2[] = "  <SOAP-ENV:Body SOAP-ENV:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n";
+    // char s3[] = "    <ns:sum>\r\n";
+    // char s4[] = "      <a>8</a>\r\n";
+    // char s5[] = "      <b>9</b>\r\n";
+    // char s6[] = "    </ns:sum>\r\n";
+    // char s7[] = "  </SOAP-ENV:Body>\r\n";
+    // char s8[] = "</SOAP-ENV:Envelope>\r\n";
     
     strcat(soapEnvelope, s0);
     strcat(soapEnvelope, s1);
     strcat(soapEnvelope, s2);
     strcat(soapEnvelope, s3);
-    // strcat(soapEnvelope, s8);
+    strcat(soapEnvelope, s8);
     strcat(soapEnvelope, s4);
     strcat(soapEnvelope, s5);
     strcat(soapEnvelope, s6);
@@ -254,8 +254,8 @@ size_t make_soap_request(char *content, size_t len, char *soap_request)
     sprintf(request, "%sUser-Agent: gSOAP/2.8\r\n", request);
     sprintf(request, "%sContent-Type: text/xml; charset=UTF-8\r\n", request);
     sprintf(request, "%sContent-Length: %d\r\n", request, contentLength);
-    // sprintf(request, "%sSOAPAction: \"urn:TC#executeCommand\"\r\n", request);
-    // sprintf(request, "%sAuthorization: Basic YWRzOjEyMw==\"\r\n", request);
+    sprintf(request, "%sSOAPAction: \"urn:TC#executeCommand\"\r\n", request);
+    sprintf(request, "%sAuthorization: Basic YWRzOjEyMw==\"\r\n", request);
     sprintf(request, "%s\r\n", request);
     requestLength = strlen(request);
     
