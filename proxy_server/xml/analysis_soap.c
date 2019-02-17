@@ -43,6 +43,7 @@
 */
 #include "xml.h"
 #include "analysis_soap.h"
+#include "../sqlite/aid_sql.h"
 
 char *strnstr(s, find, slen)
 	const char *s;
@@ -211,6 +212,13 @@ size_t make_soap_request(char *content, size_t len, char *soap_request)
     if (content==NULL || len<=0 || soap_request==NULL)
         return 0;
     
+    char *request_auth = fetch_request_auth();
+    if(request_auth==NULL || strlen(request_auth)==0)
+    {
+        // dbgprint("request auth is null\n");
+        return 0;
+    }
+
     int requestLength, contentLength;
     char request[MAX_BUF_SIZE*4] = {'\0'};
     char soapEnvelope[MAX_BUF_SIZE] = {'\0'};
@@ -242,30 +250,28 @@ size_t make_soap_request(char *content, size_t len, char *soap_request)
     strcat(soapEnvelope, s2);
     strcat(soapEnvelope, s3);
     strcat(soapEnvelope, s8);
-    strcat(soapEnvelope, s4);
+    // strcat(soapEnvelope, s4);
     strcat(soapEnvelope, s5);
     strcat(soapEnvelope, s6);
     strcat(soapEnvelope, s7);
-    strcat(soapEnvelope, s8);
+    // strcat(soapEnvelope, s8);
     contentLength = strlen(soapEnvelope);
     
     sprintf(request, "POST / HTTP/1.1\r\n");
-    sprintf(request, "%sHost: 127.0.0.1:18000\r\n", request);
+    sprintf(request, "%sHost: 127.0.0.1:18083\r\n", request);
     sprintf(request, "%sUser-Agent: gSOAP/2.8\r\n", request);
     sprintf(request, "%sContent-Type: text/xml; charset=UTF-8\r\n", request);
     sprintf(request, "%sContent-Length: %d\r\n", request, contentLength);
     sprintf(request, "%sSOAPAction: \"urn:TC#executeCommand\"\r\n", request);
-    sprintf(request, "%sAuthorization: Basic QURTOjEyMw==\"\r\n", request);
+    sprintf(request, "%sAuthorization: Basic %s\r\n", request, request_auth);
     sprintf(request, "%s\r\n", request);
     requestLength = strlen(request);
     
     sprintf(soap_request, "%s%s", request, soapEnvelope);
-    dbgprint("make soap request:\n%s\n", soap_request);
-    dbgprint("make soap request\n");
+    // dbgprint("make soap request:\n%s\n", soap_request);
     
     return (contentLength+requestLength);
 }
-
 
 
 

@@ -277,7 +277,7 @@ int main(int argc, char*argv[])
     {
         return -1;
     }
-    dbgprint("create threadpool...\n");
+    dbgprint("create threadpool...ok\n");
     
     
     int container[2] = {0};                 // embark write_fd、read_fd or soap_sock
@@ -310,7 +310,14 @@ int main(int argc, char*argv[])
     {
         return -1;
     }
-    dbgprint("init commands table...\n");
+    dbgprint("init commands table...ok\n");
+
+    /* init request auth */
+    if( init_request_auth() !=0 )
+    {
+        return -1;
+    }
+    dbgprint("init request auth...ok %s\n", fetch_request_auth());
     
 
 #ifdef SOCKSSL
@@ -363,6 +370,9 @@ int main(int argc, char*argv[])
 
     //free command table
     destory_commands_table();
+
+    //free request auth
+    destory_request_auth();
 
     //销毁线程池
     threadpool_destroy(pthpool);

@@ -1,12 +1,15 @@
+#include <ctype.h>
 #include <assert.h>
 #include <unistd.h>
 #include "aid_sql.h"
+#include "../../common/base64.h"
 
 
-// table command_table;    
+//////////////////////////////command table//////////////////////////////
+
 Table *command_table;   //hash table
 
-static int callback_record(void *data, int argc, char **argv, char **azColName)
+static int callback_record_command(void *data, int argc, char **argv, char **azColName)
 { 
     /* create a elem */
     Table *elem = malloc(sizeof(Table));
@@ -100,7 +103,7 @@ int init_commands_table()
     /* Create SQL statement */
     char *zErrMsg = 0;
     char *sql = "SELECT * from commands";
-    rc = sqlite3_exec(cmds_db, sql, callback_record, NULL/*(void*)data*/, &zErrMsg);
+    rc = sqlite3_exec(cmds_db, sql, callback_record_command, NULL/*(void*)data*/, &zErrMsg);
     if( rc != SQLITE_OK )
     {
         // dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
@@ -145,7 +148,105 @@ void destory_commands_table()
 }
 
 
+//////////////////////////////request auth//////////////////////////////
+static char *auth_base64 = NULL;
 
+char* stoupper( char* s )
+{
+    char* p = s;
+    while (*p = toupper( *p )) p++;
+    return s;
+}
+
+static int callback_record_request(void *data, int argc, char **argv, char **azColName)
+{ 
+    // dbgprint("\n");
+    // dbgprint("Parse one row:\n");
+    char szName[MAX_BUF_SIZE]       = {0};
+    char szPswd[MAX_BUF_SIZE]       = {0};
+    char szBuff[MAX_BUF_SIZE]       = {0};
+    int i;
+    for(i=0; i<argc; i++)
+    {
+        dbgprint("  %10s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
+        
+        if (strncmp(azColName[i], "idx", 3)==0)
+        {}
+        else if (strncmp(azColName[i], "Name", 4)==0)
+        {
+            if (argv[i])
+                strncpy(szName, stoupper(argv[i]), strlen(argv[i]));
+        }
+        else if (strncmp(azColName[i], "Password", 8)==0)
+        {
+            if (argv[i])
+                strncpy(szPswd, argv[i], strlen(argv[i]));
+        }
+        else
+        {}
+    }
+
+    if(strlen(szName)>0 && strlen(szPswd)>0)
+    {
+        snprintf(szBuff, sizeof(szBuff), "%s:%s", szName, szPswd);
+        int encode_len = Base64encode_len(strlen(szBuff));
+        if(auth_base64)
+            destory_request_auth();
+        auth_base64 = malloc(sizeof(char)*encode_len);
+        Base64encode(auth_base64, szBuff, strlen(szBuff));
+    }
+
+    return 0;
+}
+
+int init_request_auth()
+{
+    char szBuf[MAX_BUF_SIZE]     = {0};
+    char db_path[MAX_BUF_SIZE]   = {0};
+
+    /* db */
+    getcwd(szBuf, sizeof(szBuf));
+    snprintf(db_path, sizeof(db_path), "%s/%s", szBuf, "commands.db");
+    
+    sqlite3 *cmds_db = NULL;
+    int rc = sqlite3_open(db_path, &cmds_db);
+    if( rc )
+    {
+        // dbgprint("%s:%d:%s: %s: %s\n", __FILE__, __LINE__, "Can't open database", sqlite3_errmsg(cmds_db), db_path);
+        return -1;
+    }
+    dbgprint("Opened database successfully\n");
+    
+    /* Create SQL statement */
+    char *zErrMsg = 0;
+    char *sql = "SELECT * from request_auth";
+    rc = sqlite3_exec(cmds_db, sql, callback_record_request, NULL, &zErrMsg);
+    if( rc != SQLITE_OK )
+    {
+        // dbgprint("%s:%d:%s: %s\n", __FILE__, __LINE__, "SQL execute error", zErrMsg);
+        sqlite3_free(zErrMsg);
+        sqlite3_close(cmds_db);
+        return -2;
+    }
+    
+    sqlite3_close(cmds_db);
+    
+    return 0;
+}
+
+char *fetch_request_auth()
+{
+    return auth_base64;
+}
+
+void destory_request_auth()
+{
+    if(auth_base64)
+    {
+        free(auth_base64);
+        auth_base64 = NULL;
+    }
+}
 
 
 

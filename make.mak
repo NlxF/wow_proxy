@@ -32,6 +32,7 @@ int: objs
 src: ./common/crc8.c
 src: ./common/utility.c
 src: ./common/cJSON.c
+src: ./common/base64.c
 src: ./proxy_server/threadpool/aidsock.c
 src: ./proxy_server/threadpool/threadpool.c
 src: ./proxy_server/ssl/aidssl.c
