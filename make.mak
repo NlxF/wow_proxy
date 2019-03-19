@@ -2,8 +2,8 @@
 mode: exe
 
 ; 编译选项
-flag: -g, -Wall, -O2, -DNDEBUG
-flag: -g, -Wall, -O0, -DDEBUG
+flag: -g, -Wall, -O2
+; flag: -g, -Wall, -O0, -DDEBUG
 
 ; 设定链接
 link: stdc++
